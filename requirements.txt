@@ -1,0 +1,32 @@
+# Web Framework & Server
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.6.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+
+# Video Streaming & Image Processing
+opencv-python-headless>=4.9.0.80
+numpy>=1.26.0
+pillow>=10.2.0
+
+# ONVIF CCTV Integration
+onvif-zeep>=0.2.12
+zeep>=4.2.1
+
+# OCI (Oracle Cloud Infrastructure) SDK
+oci>=2.120.0
+
+# Gemini & Google GenAI SDK
+google-genai>=0.1.0
+
+# Utilities & Async Tasks
+apscheduler>=3.10.4
+httpx>=0.26.0
+
+# TDD & Testing Frameworks
+pytest>=8.0.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.23.0
+pytest-mock>=3.12.0
+pytest-watch>=4.2.0
