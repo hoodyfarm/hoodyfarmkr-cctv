@@ -1,48 +1,66 @@
-# hoodyfarmkr-cctv
+# 📹 hoodyfarmkr-cctv
 
-SmartLife CCTV (ONVIF/RTSP) 영상 수집, Oracle Cloud Infrastructure (OCI) 영상 저장 및 정제, Gemini AI 멀티모달 파이프라인 연동 서비스
+SmartLife CCTV (ONVIF/RTSP) 영상 수집, PostgreSQL DB 저장, OCI Cloud 파이프라인 & Gemini 2.5 Flash 멀티모달 AI 연동 파이프라인 서비스
 
-## 주요 기능
+---
 
-1. **SmartLife CCTV (ONVIF/RTSP) 수집**
-   - ONVIF 프로토콜 디스커버리 및 RTSP 스트림 엔드포인트 연동
-   - 실시간 MJPEG 웹 스트리밍 및 키프레임/모션 샘플링
-2. **Oracle Cloud Infrastructure (OCI) 데이터 파이프라인**
-   - OCI Object Storage 버킷에 원본 비디오 및 정제 프레임 자동 업로드
-   - 영상 메타데이터 (타임스탬프, 카메라 ID, 모션 유무) 구조화 및 로깅
-3. **Gemini AI 데이터세트 정제 및 파이프라인**
-   - 정제된 키프레임을 Gemini Multimodal API 입력 형식으로 변환 및 데이터셋(JSONL) 파싱
-   - 축사 모니터링 및 AI 학습용 라벨링 전처리
+## 📌 5단계 아키텍처 및 자가 진단 도구
 
-## 실행 방법
+본 프로젝트는 ONVIF 영상 수집부터 Docker/OCI 배포까지 5단계의 모듈화 구조로 개발되었습니다.
 
-### 1. 가상환경 생성 및 패키지 설치
+| 단계 | 모듈 및 역할 | 독립 자가 진단 실행 명령어 |
+| :--- | :--- | :--- |
+| **1단계** | 최상위 `.env` 환경 변수 관리 및 `config.py` 구성 | `python src/tools/check_env.py` |
+| **2단계** | ONVIF Stream URI 획득, OpenCV RTSP 프레임 수집 & 모션 계산 | `python src/tools/test_stream.py` |
+| **3단계** | PostgreSQL Async SQLAlchemy 2.0 ORM DB 연동 | `python src/tools/test_db.py` |
+| **4단계** | Gemini 2.5 Flash API 연동 & Pydantic Structured Output | `python src/tools/test_gemini.py` |
+| **5단계** | 파이프라인 통합 오케스트레이터 & Docker/OCI 배포 | `python src/tools/test_orchestrator.py` |
 
-```bash
-python -m venv .venv
-# Windows PowerShell
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
+---
 
-### 2. 환경 변수 설정
+## 🚀 빠른 시작 (Quick Start)
 
-`.env.example`을 복사하여 `.env` 생성 후 필요한 인자(ONVIF 주소, OCI 계정 정보, Gemini API Key)를 입력합니다.
-
+### 1. 환경변수 설정
 ```bash
 cp .env.example .env
 ```
 
-### 3. 서버 실행
-
+### 2. 브랜치 전환 및 의존성 설치
 ```bash
-uvicorn src.main:app --reload --port 8000
+nr branch feat/env
+pip install -r requirements.txt
 ```
 
-- API 문서는 `http://localhost:8000/docs` 에서 확인할 수 있습니다.
+### 3. 전체 진단 및 FastAPI 서버 실행
+```bash
+# 통합 파이프라인 자가 진단
+python src/tools/test_orchestrator.py
 
-### 4. 테스트 실행
+# 로컬 개발 서버 실행
+npm run dev   # uvicorn src.main:app --reload --port 8000
+```
+* **Swagger API Documentation**: `http://localhost:8000/docs`
+
+---
+
+## 🐳 Docker Compose 및 OCI 서버 원클릭 배포 (5단계)
+
+OCI(Oracle Cloud Infrastructure) Compute Instance에 **FastAPI 파이프라인 앱 + PostgreSQL 16 DB**를 한 번에 원클릭으로 컨테이너화하여 실행할 수 있습니다.
 
 ```bash
-pytest
+# Docker Compose 컨테이너 생성 및 백그라운드 구동
+docker-compose up -d --build
+
+# 컨테이너 상태 및 로그 확인
+docker-compose ps
+docker-compose logs -f cctv_app
+```
+
+---
+
+## 🧪 TDD 단위 및 통합 테스트
+
+```bash
+# pytest 단위 테스트 전체 실행
+npm run test
 ```

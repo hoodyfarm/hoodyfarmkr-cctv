@@ -4,60 +4,37 @@ from typing import Dict, Any, Optional
 import datetime
 
 from src.config import settings
-from src.services.stream_service import VideoStreamHandler
-from src.services.refiner import VideoDataRefiner
-from src.services.oci_service import OCIDataPipelineService
+from src.services.orchestrator import pipeline_orchestrator
 
 router = APIRouter(prefix="/api/v1/pipeline", tags=["OCI Data Pipeline"])
 
-class FrameCaptureRequest(BaseModel):
+class PipelineTriggerRequest(BaseModel):
     camera_id: str = "cam_01"
-    note: Optional[str] = "Manual snapshot trigger"
+    force_run: bool = False
+    note: Optional[str] = "Manual pipeline trigger"
 
-@router.post("/capture-and-upload")
-def capture_and_upload_to_oci(payload: FrameCaptureRequest) -> Dict[str, Any]:
+@router.post("/trigger")
+async def trigger_pipeline_cycle(payload: Optional[PipelineTriggerRequest] = None) -> Dict[str, Any]:
     """
-    Capture single CCTV frame, refine image/metadata, and upload to OCI Object Storage bucket.
+    Trigger end-to-end pipeline cycle:
+    [RTSP Frame Capture -> Motion Check -> Gemini 2.5 AI -> PostgreSQL Log -> OCI Upload -> Webhook Alert]
     """
-    stream_handler = VideoStreamHandler(settings.RTSP_STREAM_URL)
-    refiner = VideoDataRefiner()
-    oci_service = OCIDataPipelineService(
-        config_file=settings.OCI_CONFIG_FILE,
-        profile=settings.OCI_PROFILE,
-        raw_bucket=settings.OCI_BUCKET_RAW_VIDEOS,
-        refined_bucket=settings.OCI_BUCKET_REFINED_FRAMES
-    )
+    try:
+        result = await pipeline_orchestrator.run_pipeline_cycle()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Pipeline execution failed: {str(e)}")
 
-    frame = stream_handler.capture_single_frame()
-    if frame is None:
-        # Generate dummy fallback image frame for testing pipeline when camera is offline
-        import numpy as np
-        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
-
-    frame_bytes, metadata = refiner.refine_frame(frame)
-    
-    timestamp_str = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    object_name = f"{payload.camera_id}/{timestamp_str}.jpg"
-
-    upload_result = oci_service.upload_frame_to_oci(
-        frame_bytes=frame_bytes,
-        object_name=object_name,
-        metadata={
-            "camera_id": payload.camera_id,
-            "timestamp": metadata["timestamp"],
-            "note": payload.note or ""
-        }
-    )
-
-    oci_service.record_metadata_to_oci_db({
-        "camera_id": payload.camera_id,
-        "object_name": object_name,
-        "size_bytes": metadata["size_bytes"],
-        "upload_status": upload_result.get("status")
-    })
-
+@router.get("/status")
+def get_pipeline_status() -> Dict[str, Any]:
+    """
+    Get pipeline status and total processed frames.
+    """
     return {
-        "status": "success",
-        "frame_metadata": metadata,
-        "oci_upload_result": upload_result
+        "status": "active",
+        "app_name": settings.APP_NAME,
+        "onvif_host": settings.ONVIF_HOST,
+        "gemini_model": settings.GEMINI_MODEL,
+        "postgres_host": settings.POSTGRES_HOST,
+        "total_processed": pipeline_orchestrator._total_processed
     }

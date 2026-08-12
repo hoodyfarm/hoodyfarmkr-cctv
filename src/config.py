@@ -1,8 +1,9 @@
 import os
-from pydantic_settings import BaseSettings
 from typing import Optional
+from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
+    # App General Settings
     APP_NAME: str = "hoodyfarmkr-cctv"
     ENVIRONMENT: str = "development"
     PORT: int = 8000
@@ -12,13 +13,21 @@ class Settings(BaseSettings):
     ONVIF_HOST: str = "192.168.1.100"
     ONVIF_PORT: int = 80
     ONVIF_USER: str = "admin"
-    ONVIF_PASSWORD: str = "admin_password"
-    RTSP_STREAM_URL: str = "rtsp://admin:admin_password@192.168.1.100:554/stream1"
+    ONVIF_PASSWORD: str = "your_cctv_password"
+    RTSP_STREAM_URL: str = "rtsp://admin:your_cctv_password@192.168.1.100:554/stream1"
     
     # Sampling & Capture Configuration
-    FRAME_SAMPLING_INTERVAL_SEC: int = 5  # Capture 1 keyframe every 5 seconds
+    FRAME_SAMPLING_INTERVAL_SEC: int = 5  # Capture 1 keyframe every N seconds
     MOTION_DETECTION_THRESHOLD: float = 10000.0  # Threshold for motion detection
     MAX_RTSP_RECONNECT_ATTEMPTS: int = 5
+
+    # PostgreSQL Database Configuration (Stage 3 & Docker Deployment)
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "postgres_cctv_pass"
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str = "cctv_db"
+    DATABASE_URL: Optional[str] = None
 
     # Oracle Cloud Infrastructure (OCI) Configuration
     OCI_CONFIG_FILE: str = "~/.oci/config"
@@ -29,12 +38,19 @@ class Settings(BaseSettings):
     OCI_BUCKET_RAW_VIDEOS: str = "cctv-raw-videos"
     OCI_BUCKET_REFINED_FRAMES: str = "cctv-refined-frames"
 
-    # Gemini AI API Configuration
+    # Gemini AI API Configuration (Stage 4)
     GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
 
     # External FMS System Notification Webhook (hoodyfarmkr-fms integration)
     FMS_WEBHOOK_URL: Optional[str] = "http://localhost:3000/api/v1/cctv-events"
+
+    @property
+    def get_database_url(self) -> str:
+        """Returns configured DATABASE_URL or constructs asyncpg PostgreSQL connection string."""
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
     class Config:
         env_file = ".env"

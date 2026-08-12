@@ -1,0 +1,13 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.jpg
+temp_*.jpg
+node_modules
+.pytest_cache
+.coverage
+htmlcov

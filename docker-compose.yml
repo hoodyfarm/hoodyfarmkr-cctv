@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  cctv_db:
+    image: postgres:16-alpine
+    container_name: cctv_postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_cctv_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-cctv_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - cctv_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  cctv_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cctv_pipeline_app
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=cctv_db
+      - POSTGRES_PORT=5432
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_cctv_pass}@cctv_db:5432/${POSTGRES_DB:-cctv_db}
+    depends_on:
+      cctv_db:
+        condition: service_healthy
+
+volumes:
+  cctv_postgres_data:
