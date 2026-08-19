@@ -15,6 +15,7 @@ SmartLife CCTV (ONVIF/RTSP) 영상 수집, PostgreSQL DB 저장, OCI Cloud 파�
 | **3단계** | PostgreSQL Async SQLAlchemy 2.0 ORM DB 연동 | `python src/tools/test_db.py` |
 | **4단계** | Gemini 2.5 Flash API 연동 & Pydantic Structured Output | `python src/tools/test_gemini.py` |
 | **5단계** | 파이프라인 통합 오케스트레이터 & Docker/OCI 배포 | `python src/tools/test_orchestrator.py` |
+| **6단계** | Gemini 2.5 Flash 에러 자가 진단 및 코드 개선 (Self-Healing) | `python src/tools/test_code_refiner.py` (`npm run refine`) |
 
 ---
 

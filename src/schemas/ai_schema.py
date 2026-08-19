@@ -15,3 +15,12 @@ class CCTVAnalysisResultSchema(BaseModel):
     detected_objects: List[DetectedObject] = Field(default_factory=list, description="List of detected objects in the scene")
     summary: str = Field(description="Detailed Korean summary explaining what is occurring in the frame")
     recommended_action: str = Field(default="monitor", description="Recommended action: monitor, notify_operator, trigger_alarm, log_only")
+
+class AICodeFixSuggestionSchema(BaseModel):
+    """Pydantic Structured Output schema for Gemini 2.5 Flash self-healing code refiner."""
+    error_summary: str = Field(description="Brief Korean summary of the identified error or bottleneck")
+    root_cause: str = Field(description="Technical root cause analysis (RCA)")
+    proposed_fix: str = Field(description="Detailed step-by-step resolution strategy")
+    refactored_code_snippet: str = Field(description="Executable Python code snippet containing the fix or refactored logic")
+    prevention_strategy: str = Field(default="Add unit test and async exception handler", description="Best practice to prevent future regression")
+
