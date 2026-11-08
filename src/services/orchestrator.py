@@ -58,6 +58,19 @@ class PipelineOrchestrator:
         if not jpeg_bytes:
             return {"status": "error", "message": "JPEG encoding failed"}
 
+        # Local File Storage (3500X ??? PC ?? ???/?? ??)
+        local_saved_path = None
+        try:
+            import os
+            local_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "captures", "frames")
+            os.makedirs(local_dir, exist_ok=True)
+            local_saved_path = os.path.join(local_dir, f"frame_{cycle_id}.jpg")
+            with open(local_saved_path, "wb") as f:
+                f.write(jpeg_bytes)
+            logger.info(f"Local frame saved: {local_saved_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save local frame: {e}")
+
         # 3. Gemini 2.5 Flash Multimodal Vision Analysis
         ai_result: CCTVAnalysisResultSchema = self.gemini_service.analyze_frame_structured(jpeg_bytes)
 
@@ -127,6 +140,7 @@ class PipelineOrchestrator:
             "motion_score": motion_score,
             "ai_result": ai_result.model_dump(),
             "oci_url": oci_url,
+            "local_frame_path": local_saved_path,
             "db_frame_log_id": db_log_id,
             "webhook_status": webhook_status
         }
