@@ -1,27 +1,25 @@
 @echo off
-chcp 65001 > nul
-title [후디팜 FMS] AI Vision 데몬 상태 확인
+title [HoodyFarm FMS] Check AI Vision Daemon Status
 echo ===================================================
-echo   [후디팜 FMS] 3500X AI Vision 데몬 상태 점검
+echo   Checking HoodyFarm Vision Daemon on Port 8000...
 echo ===================================================
 echo.
 
 set FOUND=0
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8000 ^| findstr LISTENING') do (
     set FOUND=1
-    echo [정상 가동 중] 포트 8000 (PID: %%a) 에서 데몬이 실행 중입니다.
+    echo [RUNNING] Daemon is active on Port 8000 (PID: %%a)
 )
 
 if "%FOUND%"=="0" (
-    echo [미실행] 현재 AI Vision 데몬이 실행되어 있지 않습니다.
+    echo [STOPPED] AI Vision Daemon is NOT running.
 ) else (
     echo.
-    echo --- 네트워크 접속 정보 ---
-    echo [사내망 IP] http://192.168.0.234:8000
-    echo [Tailscale IP] http://100.75.197.92:8000
-    echo [Swagger 문서] http://192.168.0.234:8000/docs
+    echo --- Access Endpoints ---
+    echo [LAN URL]       http://192.168.0.234:8000
+    echo [Tailscale URL] http://100.75.197.92:8000
+    echo [API Docs]      http://192.168.0.234:8000/docs
 )
 
 echo.
-echo 아무 키나 누르면 창을 닫습니다...
-pause > nul
+pause
