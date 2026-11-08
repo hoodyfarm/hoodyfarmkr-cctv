@@ -1,10 +1,11 @@
 import time
 import threading
 import queue
+import collections
 import logging
 import cv2
 import numpy as np
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +17,22 @@ class IngestionWorker:
     - 카메라 네트워크 끊김 시 3초 주기 자동 재연결(Watchdog)
     """
 
-    def __init__(self, stream_url: str, target_fps: float = 1.5, max_queue_size: int = 1):
+    def __init__(
+        self,
+        stream_url: str,
+        target_fps: float = 5.0,
+        max_queue_size: int = 1,
+        ring_buffer_sec: float = 10.0
+    ):
         self.stream_url = stream_url
         self.target_fps = target_fps
-        self.interval = 1.0 / target_fps if target_fps > 0 else 0.5
+        self.interval = 1.0 / target_fps if target_fps > 0 else 0.2
         self.frame_queue: queue.Queue = queue.Queue(maxsize=max_queue_size)
+        
+        # 3초 전후 영상 클립 생성을 위한 고정 크기 타임스탬프 링 버퍼
+        self.ring_buffer_maxlen = max(int(target_fps * ring_buffer_sec), 30)
+        self.ring_buffer: collections.deque = collections.deque(maxlen=self.ring_buffer_maxlen)
+        self._buffer_lock = threading.Lock()
         
         self._running = False
         self._thread: Optional[threading.Thread] = None
@@ -56,6 +68,32 @@ class IngestionWorker:
             return self.frame_queue.get(timeout=timeout)
         except queue.Empty:
             return None
+
+    def get_buffered_frames_around(
+        self,
+        event_time: float,
+        pre_sec: float = 3.0,
+        post_sec: float = 3.0
+    ) -> List[np.ndarray]:
+        """
+        이벤트 발생 시점(event_time) 기준 [event_time - pre_sec, event_time + post_sec] 범위의
+        링 버퍼 내 프레임들을 시간 순서대로 복사하여 반환.
+        """
+        start_time = event_time - pre_sec
+        end_time = event_time + post_sec
+        with self._buffer_lock:
+            selected = [
+                frame.copy()
+                for ts, frame in self.ring_buffer
+                if start_time <= ts <= end_time
+            ]
+        return selected
+
+    def get_recent_frames(self, count: int = 30) -> List[np.ndarray]:
+        """버퍼 내 가장 최근 N개 프레임 반환"""
+        with self._buffer_lock:
+            items = list(self.ring_buffer)
+            return [frame.copy() for _, frame in items[-count:]]
 
     def _connect_camera(self) -> bool:
         """OpenCV RTSP 버퍼 최소화 연결"""
@@ -109,6 +147,10 @@ class IngestionWorker:
             if now - self.last_capture_time >= self.interval:
                 self.last_capture_time = now
                 self.total_captured += 1
+                
+                # 링 버퍼에 타임스탬프와 함께 보관 (초당 5프레임 기준 10초 = 최대 50프레임)
+                with self._buffer_lock:
+                    self.ring_buffer.append((now, frame))
                 
                 # 큐가 꽉 찼으면 이전 프레임을 버리고 가장 최신 프레임으로 덮어씀 (Zero-Latency Ring Queue)
                 if self.frame_queue.full():

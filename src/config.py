@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     # External FMS System Notification Webhook (hoodyfarmkr-fms integration)
     FMS_WEBHOOK_URL: Optional[str] = "http://localhost:3000/api/v1/cctv-events"
 
+    # Clip & Buffer Configuration (Event Detection)
+    CLIP_PRE_EVENT_SEC: float = 3.0
+    CLIP_POST_EVENT_SEC: float = 3.0
+    CLIP_FPS: float = 5.0
+    EVENT_COOLDOWN_SEC: float = 10.0
+
     @property
     def get_database_url(self) -> str:
         """Returns configured DATABASE_URL or constructs asyncpg PostgreSQL connection string."""
