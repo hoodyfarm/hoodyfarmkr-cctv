@@ -1,0 +1,14 @@
+{
+  "lastHash": "-21f03ba",
+  "timestamp": "2026-11-08T23:23:16.059Z",
+  "anomaly": {
+    "serviceName": "ReceiptService",
+    "functionName": "",
+    "rawMessage": "[ReceiptService] [WARN] 출하정산서 음수 수량 감지: qty = -1",
+    "recommendedAction": "PREVENT_NEGATIVE",
+    "actionDetail": "Math.max(0, ...) 음수 및 NaN 방어 가드 적용",
+    "targetFilePath": "F:\\workspace\\packages\\core\\src\\services\\ReceiptService.ts",
+    "metricName": "quantity",
+    "timestamp": "2026-11-08T23:23:16.058Z"
+  }
+}

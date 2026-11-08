@@ -1,0 +1,21 @@
+{
+  "timeZone": "Asia/Seoul",
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "dependencies": {
+    "libraries": [
+      {
+        "userSymbol": "HoodyLib_Core",
+        "libraryId": "1mtrashtfEfuk8wHosUOy8Dcxf_KXLj5pOTG0c6MR6AwMlbzKeF83BR1Q",
+        "version": "42",
+        "developmentMode": true
+      }
+    ]
+  },
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/script.scriptapp",
+    "https://www.googleapis.com/auth/drive"
+  ]
+}

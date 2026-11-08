@@ -1,0 +1,10 @@
+{
+  "lastHash": "-4681eded",
+  "timestamp": "2026-11-01T05:36:08.279Z",
+  "errorInfo": {
+    "serviceName": "CattleSyncService",
+    "functionName": "syncCattle",
+    "errorMessage": "[CattleSyncService.syncCattle] [ERROR] TypeError: Cannot read properties of undefined (reading 'earTag')",
+    "defectCategory": "NULL_REFERENCE"
+  }
+}

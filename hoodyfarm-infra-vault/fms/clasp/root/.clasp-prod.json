@@ -1,0 +1,16 @@
+{
+  "scriptId": "1F33P-9gZII86plLQUp7y_SQYAqSlwEBPb3MgwWGYyu_dmvAEzAXar8S7",
+  "rootDir": "src",
+  "projectId": "gen-lang-client-0576267119",
+  "scriptExtensions": [
+    ".js",
+    ".gs"
+  ],
+  "htmlExtensions": [
+    ".html"
+  ],
+  "jsonExtensions": [
+    ".json"
+  ],
+  "filePushOrder": []
+}

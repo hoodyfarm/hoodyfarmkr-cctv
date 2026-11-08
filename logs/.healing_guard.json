@@ -1,0 +1,83 @@
+{
+  "date": "2026-11-07",
+  "dailyTotalAttempts": 7,
+  "targets": {
+    "DataValidator": {
+      "dailyCount": 0,
+      "consecutiveFailures": 0,
+      "lastAttemptAt": 1793456494433
+    },
+    "GAS": {
+      "dailyCount": 3,
+      "consecutiveFailures": 0,
+      "lastAttemptAt": 1794050423332
+    },
+    "SheetUI_Main": {
+      "dailyCount": 0,
+      "consecutiveFailures": 0,
+      "lastAttemptAt": 1793224496924
+    },
+    "ShipPipeline": {
+      "dailyCount": 0,
+      "consecutiveFailures": 0,
+      "lastAttemptAt": 1793514969064
+    },
+    "AutoImprovePipeline": {
+      "dailyCount": 0,
+      "consecutiveFailures": 0,
+      "lastAttemptAt": 1793455508978
+    },
+    "AppSheetToReactApiAdapter": {
+      "dailyCount": 0,
+      "consecutiveFailures": 0,
+      "lastAttemptAt": 1793515050530
+    },
+    "ThreeRepoVaultSync": {
+      "dailyCount": 1,
+      "consecutiveFailures": 0,
+      "lastAttemptAt": 1794033949792
+    },
+    "NoticeService": {
+      "dailyCount": 1,
+      "consecutiveFailures": 0,
+      "lastAttemptAt": 1794034421913
+    },
+    "Inner_Cattle": {
+      "dailyCount": 1,
+      "consecutiveFailures": 0,
+      "lastAttemptAt": 1794036885675
+    },
+    "FeedTrackingService": {
+      "dailyCount": 1,
+      "consecutiveFailures": 0,
+      "lastAttemptAt": 1794050427694
+    }
+  },
+  "signatures": {
+    "1447e7beee6b1e01": 1793137652975,
+    "a097d16f8b2140f5": 1793223364224,
+    "6f1ffe8cb438d56f": 1793224134252,
+    "655e07da766307f9": 1793224137356,
+    "90357bb6e290293e": 1793224493763,
+    "0e08a7ad26374b18": 1793224496924,
+    "756a8d5c2074a8bc": 1793398852986,
+    "8d67a9af4f2c0aca": 1793451710204,
+    "745f160e898e1f54": 1793452714701,
+    "3f82372b4c586940": 1793455505328,
+    "0ed52f9538ec8051": 1793455508978,
+    "6b5eb9ce809301c6": 1793455556621,
+    "89c454495134b886": 1793455620400,
+    "9777a39ccb1a0db4": 1793456494433,
+    "951555dbd6243e54": 1793511493481,
+    "0bab31689a5f1003": 1793514969064,
+    "1aa56e3e0ef8366d": 1793515047330,
+    "4afb6c12548ae576": 1793515050530,
+    "2b353ee2b18aa537": 1794033946340,
+    "151d6a716a059510": 1794033949792,
+    "bfbda8112edc1103": 1794034417770,
+    "4037dfc6a45d9cba": 1794034421913,
+    "e0a72de2ad24e8ea": 1794036885675,
+    "a6e505649923cc33": 1794050423332,
+    "cbd57ee3212207dc": 1794050427694
+  }
+}

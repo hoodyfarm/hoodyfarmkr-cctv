@@ -1,0 +1,14 @@
+{
+  "lastHash": "c52e81e",
+  "timestamp": "2026-10-31T14:25:14.595Z",
+  "anomaly": {
+    "serviceName": "ReceiptService",
+    "functionName": "POST_processReceipt",
+    "rawMessage": "=== [SOURCE: F:\\workspace\\logs\\warn_20261031_2322.log - 2026-10-31T14:24:30.257Z] ===",
+    "recommendedAction": "PREVENT_NEGATIVE",
+    "actionDetail": "Math.max(0, ...) 음수 및 NaN 방어 가드 적용",
+    "targetFilePath": "F:\\workspace\\packages\\core\\src\\services\\ReceiptService.ts",
+    "metricName": "quantity",
+    "timestamp": "2026-10-31T14:24:30.289Z"
+  }
+}

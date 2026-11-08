@@ -1,0 +1,17 @@
+{
+  "scriptId": "1LSR6D9Y4XzW3oA4XDohKb-IMH_M6oK22Krg7OShOgmlGgHDDypXzBJHv", //spreadsheet Inner class
+  //"scriptId": "1mtrashtfEfuk8wHosUOy8Dcxf_KXLj5pOTG0c6MR6AwMlbzKeF83BR1Q", //HoodyLib_Core
+  "rootDir": "src",
+  "projectId": "gen-lang-client-0576267119",
+  "scriptExtensions": [
+    ".js",
+    ".gs"
+  ],
+  "htmlExtensions": [
+    ".html"
+  ],
+  "jsonExtensions": [
+    ".json"
+  ],
+  "filePushOrder": []
+}
