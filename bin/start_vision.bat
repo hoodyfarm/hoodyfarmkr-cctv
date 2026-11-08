@@ -16,7 +16,7 @@ if not exist "D:\workspace\hoodyfarmkr-cctv\.venv\Scripts\python.exe" (
 set PYTHONUTF8=1
 set PYTHONPATH=D:\workspace\hoodyfarmkr-cctv
 
-echo [STATUS] Starting FastAPI & YOLO Vision Daemon...
+echo [STATUS] Starting FastAPI and YOLO Vision Daemon...
 echo [INFO] LAN: http://192.168.0.234:8000
 echo [INFO] Tailscale: http://100.75.197.92:8000
 echo [INFO] Docs: http://192.168.0.234:8000/docs
