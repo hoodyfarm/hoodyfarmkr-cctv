@@ -50,8 +50,10 @@ def list_captured_files(limit: int = 20) -> Dict[str, Any]:
     List recent captured frames (.jpg) and video clips (.mp4) on 3500X local disk.
     """
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    frames_dir = os.path.join(base_dir, "captures", "frames")
+    events_dir = os.path.join(base_dir, "captures", "events")
+    spool_dir = os.path.join(base_dir, "captures", "spool")
     clips_dir = os.path.join(base_dir, "captures", "clips")
+    frames_dir = os.path.join(base_dir, "captures", "frames")
 
     def scan_dir(target_dir: str, ext: str):
         if not os.path.exists(target_dir):
@@ -70,15 +72,20 @@ def list_captured_files(limit: int = 20) -> Dict[str, Any]:
         files.sort(key=lambda x: x["modified_at"], reverse=True)
         return files[:limit]
 
-    recent_frames = scan_dir(frames_dir, ".jpg")
+    recent_events = scan_dir(events_dir, ".jpg")
+    recent_spool = scan_dir(spool_dir, ".jpg")
     recent_clips = scan_dir(clips_dir, ".mp4")
+    recent_legacy = scan_dir(frames_dir, ".jpg")
 
     return {
         "status": "success",
-        "total_frames_found": len(recent_frames),
+        "total_events_found": len(recent_events),
+        "total_spool_found": len(recent_spool),
         "total_clips_found": len(recent_clips),
-        "frames": recent_frames,
-        "clips": recent_clips
+        "events": recent_events,
+        "spool": recent_spool,
+        "clips": recent_clips,
+        "legacy_frames": recent_legacy
     }
 
 @router.get("/captures/view/{folder}/{filename}")
@@ -86,7 +93,7 @@ def view_captured_file(folder: str, filename: str):
     """
     Directly view or download captured frame (.jpg) or clip (.mp4) on mobile browser.
     """
-    if folder not in ["frames", "clips"]:
+    if folder not in ["events", "spool", "frames", "clips"]:
         raise HTTPException(status_code=400, detail="Invalid folder type. Use 'frames' or 'clips'.")
     
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
