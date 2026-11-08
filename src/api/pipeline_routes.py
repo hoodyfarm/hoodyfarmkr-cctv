@@ -5,6 +5,7 @@ import datetime
 
 from src.config import settings
 from src.services.orchestrator import pipeline_orchestrator
+from src.services.worker_manager import worker_manager
 
 router = APIRouter(prefix="/api/v1/pipeline", tags=["OCI Data Pipeline"])
 
@@ -30,11 +31,13 @@ def get_pipeline_status() -> Dict[str, Any]:
     """
     Get pipeline status and total processed frames.
     """
+    telemetry = worker_manager.get_telemetry()
     return {
         "status": "active",
         "app_name": settings.APP_NAME,
         "onvif_host": settings.ONVIF_HOST,
         "gemini_model": settings.GEMINI_MODEL,
         "postgres_host": settings.POSTGRES_HOST,
-        "total_processed": pipeline_orchestrator._total_processed
+        "total_processed": pipeline_orchestrator._total_processed,
+        "workers": telemetry
     }

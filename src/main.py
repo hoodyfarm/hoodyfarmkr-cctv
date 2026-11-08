@@ -8,6 +8,7 @@ from src.api.camera_routes import router as camera_router
 from src.api.pipeline_routes import router as pipeline_router
 from src.api.gemini_routes import router as gemini_router
 from src.core.scheduler import scheduler
+from src.services.worker_manager import worker_manager
 
 logging.basicConfig(
     level=settings.LOG_LEVEL,
@@ -37,11 +38,19 @@ app.include_router(gemini_router)
 def on_startup():
     logger.info(f"Starting {settings.APP_NAME} in environment: {settings.ENVIRONMENT}")
     scheduler.start()
+    try:
+        worker_manager.start_all()
+    except Exception as e:
+        logger.warning(f"Failed to start workers on startup: {e}")
 
 @app.on_event("shutdown")
 def on_shutdown():
     logger.info(f"Stopping {settings.APP_NAME}")
     scheduler.stop()
+    try:
+        worker_manager.stop_all()
+    except Exception as e:
+        logger.warning(f"Failed to stop workers on shutdown: {e}")
 
 @app.get("/health", tags=["Health"])
 def health_check() -> Dict[str, Any]:
