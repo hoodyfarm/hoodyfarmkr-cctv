@@ -1,6 +1,8 @@
 # 📌 hoodyfarmkr-cctv 단기 작업 메모 (MEMO)
 
 ## Part 1. 핵심 메모 (Core Memos)
+* **[WIP: 2026-11-08 14:40]** - 진행상황: [3500X 관리사 PC 셋업] Python 3.11 가상환경 구축, YOLO11n + ONNXRuntime 초경량 비전 추론 탑재(42.9ms/23.3 FPS 달성), 축사 CCTV(192.168.0.217) ONVIF 포트(8899) 및 SD 서브스트림(/streamtype=1) 발굴 및 실시간 영상 수집/모션감지 성공, 윈도우 시작프로그램 및 바탕화면 제어 BAT/바로가기 생성 완료 -> 다음 과제: 실제 축사 송아지/우사 객체 감지 파이프라인 연계 및 백그라운드 데몬 안정화
+* **[WIP: 2026-08-19 13:07]** - 진행상황: FMS AI 자동화 및 Self-Healing 시스템 CCTV 이식: -> 내일 할 일: 컬 파이썬 가상환경(.venv) 세팅
 * **[WIP: 2026-08-19 13:06]** - 진행상황: [6단계 완료] FMS AI 자동화 체계 CCTV 이식 완료 (Gemini 2.5 Flash 기반 AICodeRefinerService, CLI 진단도구 test_code_refiner.py, REFACTORING_PROMPT.md, TICKTOCK.md, workflow-start/end 고도화) -> 다음에 할 일: 로컬 파이썬 가상환경(.venv) 생성/연결 후 npm run refine 및 전체 자가진단 실행
 * **[WIP: 2026-08-12 13:58]** - 진행상황: [5단계 전체 완료] PipelineOrchestrator 파이프라인 수집-분석-저장-OCI업로드-알림 루프 통합, Dockerfile & docker-compose.yml (App+PostgreSQL) 생성, src/tools/test_orchestrator.py CLI 진단 도구 및 README.md 가이드 작성 완료 -> 다음 할 일: feat/env 브랜치 테스트 및 OCI 배포
 * **[WIP: 2026-08-12 13:56]** - 진행상황: [4단계 완료] Gemini 2.5 Flash (`google-genai` SDK) 멀티모달 API 연동, Pydantic Structured Output 스키마(CCTVAnalysisResultSchema, DetectedObject), src/tools/test_gemini.py CLI 진단 도구 구현 -> 다음 할 일: [5단계] 파이프라인 오케스트레이터 및 Docker/OCI 배포 구성

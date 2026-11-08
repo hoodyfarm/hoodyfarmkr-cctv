@@ -34,3 +34,8 @@ htmlcov/
 temp/
 captures/
 dataset_exports/
+
+# Weights & Large Models
+*.pt
+*.onnx
+*.engine
