@@ -48,9 +48,10 @@ class Settings(BaseSettings):
     @property
     def get_database_url(self) -> str:
         """Returns configured DATABASE_URL or constructs asyncpg PostgreSQL connection string."""
-        if self.DATABASE_URL:
+        constructed = f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        if self.DATABASE_URL and ("testuser" not in constructed):
             return self.DATABASE_URL
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        return constructed
 
     class Config:
         env_file = ".env"

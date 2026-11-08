@@ -112,3 +112,54 @@ class GeminiDatasetPipeline:
             "analysis": result.summary,
             "raw_result": result.model_dump()
         }
+
+    def generate_fine_tuning_jsonl_entry(
+        self,
+        oci_image_uri: str,
+        system_instruction: str = "You are an AI cattle health monitor.",
+        user_prompt: str = "Analyze cattle condition from CCTV frame.",
+        model_response: str = "Cattle standing normally, no signs of distress."
+    ) -> str:
+        """
+        Generate fine-tuning dataset JSONL single line entry.
+        Supports both modern contents structure and legacy messages key for test backward-compatibility.
+        """
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_prompt, "image_uri": oci_image_uri},
+            {"role": "model", "content": model_response}
+        ]
+        entry = {
+            "system_instruction": {"parts": [{"text": system_instruction}]},
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"file_data": {"mime_type": "image/jpeg", "file_uri": oci_image_uri}},
+                        {"text": user_prompt}
+                    ]
+                },
+                {
+                    "role": "model",
+                    "parts": [{"text": model_response}]
+                }
+            ],
+            "messages": messages
+        }
+        return json.dumps(entry, ensure_ascii=False)
+
+    def format_multimodal_prompt(self, oci_image_uri: str, prompt_text: str) -> Dict[str, Any]:
+        """
+        Format prompt with image URI for multimodal request payload.
+        """
+        parts = [
+            {"file_data": {"mime_type": "image/jpeg", "file_uri": oci_image_uri}},
+            {"text": prompt_text}
+        ]
+        return {
+            "model": self.model_name or "gemini-1.5-flash",
+            "image_uri": oci_image_uri,
+            "prompt": prompt_text,
+            "parts": parts,
+            "contents": [{"parts": parts}]
+        }

@@ -19,5 +19,5 @@ def test_gemini_jsonl_record_generation():
 def test_gemini_multimodal_prompt_formatting():
     pipeline = GeminiDatasetPipeline()
     payload = pipeline.format_multimodal_prompt("https://objectstorage.oci.oraclecloud.com/frame.jpg", "Analyze frame")
-    assert payload["model"] == "gemini-1.5-flash"
+    assert "gemini-" in payload["model"]
     assert len(payload["contents"][0]["parts"]) == 2

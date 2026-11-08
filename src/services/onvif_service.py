@@ -2,6 +2,12 @@ import logging
 from typing import Dict, Any, Optional, List
 from src.config import settings
 
+try:
+    from onvif import ONVIFCamera
+except ImportError:
+    ONVIFCamera = None
+
+
 logger = logging.getLogger(__name__)
 
 class ONVIFCameraService:
@@ -30,7 +36,6 @@ class ONVIFCameraService:
         Connect to camera via ONVIF protocol using onvif-zeep.
         """
         try:
-            from onvif import ONVIFCamera
             logger.info(f"Connecting to ONVIF camera at {self.host}:{self.port}...")
             self.device = ONVIFCamera(
                 self.host,

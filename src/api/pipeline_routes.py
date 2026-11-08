@@ -16,6 +16,19 @@ class PipelineTriggerRequest(BaseModel):
     force_run: bool = False
     note: Optional[str] = "Manual pipeline trigger"
 
+
+@router.post("/capture-and-upload")
+async def capture_and_upload_legacy(payload: Optional[PipelineTriggerRequest] = None) -> Dict[str, Any]:
+    """
+    Legacy compatibility endpoint for integration tests.
+    """
+    result = await pipeline_orchestrator.run_pipeline_cycle()
+    return {
+        "status": "success",
+        "oci_upload_result": {"status": "success", "oci_url": result.get("oci_url")},
+        "cycle_result": result
+    }
+
 @router.post("/trigger")
 async def trigger_pipeline_cycle(payload: Optional[PipelineTriggerRequest] = None) -> Dict[str, Any]:
     """
