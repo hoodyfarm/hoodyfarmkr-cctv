@@ -34,6 +34,19 @@ htmlcov/
 temp/
 captures/
 dataset_exports/
+spool/
+scratch/
+hoodyfarm-cctv/spool/
+
+# Media & Video Clips & Images
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.jpg
+*.jpeg
+*.png
+!node_modules/**/*.png
 
 # Weights & Large Models
 *.pt
