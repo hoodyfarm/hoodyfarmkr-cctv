@@ -24,10 +24,12 @@ class FMSWebhookClient:
         clip_path: Optional[str] = None,
         frame_path: Optional[str] = None,
         ai_summary: Optional[str] = None,
-        is_anomaly: bool = False
+        is_anomaly: bool = False,
+        oci_clip_url: Optional[str] = None,
+        oci_frame_url: Optional[str] = None
     ) -> str:
         """
-        FMS Webhook 서버로 이벤트 알림 및 생성된 클립 메타데이터 전송
+        FMS Webhook 서버로 이벤트 알림, OCI URL 및 생성된 클립 메타데이터 전송
         """
         if not self.webhook_url:
             logger.info("FMSWebhookClient: FMS_WEBHOOK_URL is not configured. Webhook skipped.")
@@ -47,9 +49,12 @@ class FMSWebhookClient:
                 "file_name": clip_filename,
                 "file_path": clip_path,
                 "file_size_bytes": clip_size_bytes,
-                "duration_seconds": 6.0
+                "duration_seconds": 6.0,
+                "oci_url": oci_clip_url
             } if clip_path else None,
             "frame_path": frame_path,
+            "oci_clip_url": oci_clip_url,
+            "oci_frame_url": oci_frame_url,
             "summary": ai_summary or f"{event_type} detected by CCTV Pipeline",
             "status": "alert"
         }

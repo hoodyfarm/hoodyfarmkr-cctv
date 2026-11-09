@@ -4,6 +4,8 @@ import json
 import datetime
 from typing import Dict, Any, Optional
 
+from src.config import settings
+
 logger = logging.getLogger(__name__)
 
 class OCIDataPipelineService:
@@ -13,37 +15,46 @@ class OCIDataPipelineService:
     """
     def __init__(
         self,
-        config_file: str = "~/.oci/config",
-        profile: str = "DEFAULT",
-        raw_bucket: str = "cctv-raw-videos",
-        refined_bucket: str = "cctv-refined-frames"
+        config_file: Optional[str] = None,
+        profile: Optional[str] = None,
+        raw_bucket: Optional[str] = None,
+        refined_bucket: Optional[str] = None,
+        region: Optional[str] = None,
+        namespace: Optional[str] = None
     ):
-        self.config_file = config_file
-        self.profile = profile
-        self.raw_bucket = raw_bucket
-        self.refined_bucket = refined_bucket
+        self.config_file = config_file or settings.OCI_CONFIG_FILE
+        self.profile = profile or settings.OCI_PROFILE
+        self.region = region or settings.OCI_REGION
+        self.raw_bucket = raw_bucket or settings.OCI_BUCKET_NAME or settings.OCI_BUCKET_RAW_VIDEOS
+        self.refined_bucket = refined_bucket or settings.OCI_BUCKET_REFINED_FRAMES
+        self.namespace = namespace or settings.OCI_NAMESPACE or settings.OCI_OBJECT_STORAGE_NAMESPACE
         self.client = None
-        self.namespace = None
         self.initialize_client()
 
     def initialize_client(self) -> bool:
         """
         Initialize OCI Object Storage Client using OCI SDK config file or instance principal.
+        Safely falls back to simulation mode if config or credentials are not found.
         """
         try:
             import oci
-            expanded_path = os.path.expanduser(self.config_file)
-            if os.path.exists(expanded_path):
+            expanded_path = os.path.expanduser(self.config_file) if self.config_file else ""
+            if expanded_path and os.path.exists(expanded_path):
                 config = oci.config.from_file(expanded_path, self.profile)
+                if self.region:
+                    config["region"] = self.region
                 self.client = oci.object_storage.ObjectStorageClient(config)
-                self.namespace = self.client.get_namespace().data
+                fetched_namespace = self.client.get_namespace().data
+                if fetched_namespace:
+                    self.namespace = fetched_namespace
                 logger.info(f"OCI Object Storage Client initialized for namespace: {self.namespace}")
                 return True
             else:
-                logger.info(f"OCI config file not found at {expanded_path}. Operating in simulated/development mode.")
+                logger.info(f"OCI config file not found at '{expanded_path}'. Operating in simulated/development mode.")
                 return False
         except Exception as e:
             logger.warning(f"OCI client initialization note: {e}. Simulated upload mode enabled.")
+            self.client = None
             return False
 
     def upload_frame_to_oci(
@@ -80,6 +91,101 @@ class OCIDataPipelineService:
             metadata=metadata
         )
 
+    def upload_refined_frame(
+        self,
+        object_name: str,
+        frame_bytes: bytes,
+        metadata: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Helper method compatible with PipelineOrchestrator.
+        """
+        return self.upload_frame_to_oci(
+            frame_bytes=frame_bytes,
+            object_name=object_name,
+            metadata=metadata
+        )
+
+    def upload_file_to_oci(
+        self,
+        file_path: str,
+        object_name: Optional[str] = None,
+        bucket_name: Optional[str] = None,
+        metadata: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Upload local file directly to OCI bucket based on file extension (.mp4 or .jpg/.jpeg).
+        """
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found for OCI upload: {file_path}")
+
+        if not object_name:
+            object_name = os.path.basename(file_path)
+
+        with open(file_path, "rb") as f:
+            content_bytes = f.read()
+
+        is_video = file_path.lower().endswith((".mp4", ".avi", ".mkv", ".mov"))
+        content_type = "video/mp4" if is_video else "image/jpeg"
+        target_bucket = bucket_name or (self.raw_bucket if is_video else self.refined_bucket)
+
+        return self._put_object(
+            bucket_name=target_bucket,
+            object_name=object_name,
+            content_bytes=content_bytes,
+            content_type=content_type,
+            metadata=metadata
+        )
+
+    def _generate_par_or_public_url(
+        self,
+        bucket_name: str,
+        object_name: str,
+        expiry_days: int = 7
+    ) -> Optional[str]:
+        """
+        Generate Pre-Authenticated Request (PAR) URL for direct secure access to uploaded object.
+        """
+        if not self.client or not self.namespace:
+            return None
+
+        try:
+            import oci
+            par_name = f"PAR_{datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{os.path.basename(object_name)}"
+            time_expires = datetime.datetime.utcnow() + datetime.timedelta(days=expiry_days)
+            par_details = oci.object_storage.models.CreatePreauthenticatedRequestDetails(
+                name=par_name,
+                object_name=object_name,
+                access_type=oci.object_storage.models.CreatePreauthenticatedRequestDetails.ACCESS_TYPE_OBJECT_READ,
+                time_expires=time_expires
+            )
+            par_res = self.client.create_preauthenticated_request(
+                namespace_name=self.namespace,
+                bucket_name=bucket_name,
+                create_preauthenticated_request_details=par_details
+            )
+            access_uri = par_res.data.access_uri
+            endpoint = None
+            if hasattr(self.client, "base_client"):
+                endpoint_attr = getattr(self.client.base_client, "endpoint", None)
+                if isinstance(endpoint_attr, str) and endpoint_attr:
+                    endpoint = endpoint_attr
+                elif hasattr(self.client.base_client, "get_endpoint"):
+                    endpoint = self.client.base_client.get_endpoint()
+
+            if not endpoint or not isinstance(endpoint, str):
+                region = getattr(self, "region", "ap-seoul-1")
+                endpoint = f"https://objectstorage.{region}.oraclecloud.com"
+
+            endpoint = endpoint.rstrip("/")
+            par_url = f"{endpoint}{access_uri}"
+            logger.info(f"Generated OCI PAR URL for '{object_name}': {par_url}")
+            return par_url
+        except Exception as e:
+            logger.warning(f"Failed to generate OCI PAR URL for '{object_name}': {e}")
+            region = getattr(self, "region", "ap-seoul-1")
+            return f"https://objectstorage.{region}.oraclecloud.com/n/{self.namespace}/b/{bucket_name}/o/{object_name}"
+
     def _put_object(
         self,
         bucket_name: str,
@@ -102,11 +208,20 @@ class OCIDataPipelineService:
                     opc_meta=opc_meta
                 )
                 logger.info(f"Successfully uploaded {object_name} to OCI bucket '{bucket_name}'")
+
+                # Generate PAR URL or accessible OCI URL
+                oci_url = self._generate_par_or_public_url(bucket_name, object_name)
+                if not oci_url:
+                    region = getattr(self, "region", "ap-seoul-1")
+                    oci_url = f"https://objectstorage.{region}.oraclecloud.com/n/{self.namespace}/b/{bucket_name}/o/{object_name}"
+
                 return {
                     "status": "success",
                     "bucket": bucket_name,
                     "object_name": object_name,
-                    "etag": response.headers.get("etag"),
+                    "etag": response.headers.get("etag") if hasattr(response, "headers") else None,
+                    "oci_url": oci_url,
+                    "oci_object_url": oci_url,
                     "size_bytes": len(content_bytes),
                     "uploaded_at": timestamp,
                     "metadata": metadata or {}
@@ -116,12 +231,15 @@ class OCIDataPipelineService:
                 return {"status": "error", "message": str(e), "uploaded_at": timestamp}
 
         # Simulated response when OCI config file is not yet deployed on local dev machine
-        simulated_url = f"https://objectstorage.{self.profile}.oraclecloud.com/n/simulated_namespace/b/{bucket_name}/o/{object_name}"
+        namespace_val = self.namespace or "simulated_namespace"
+        region_val = self.region or "ap-seoul-1"
+        simulated_url = f"https://objectstorage.{region_val}.oraclecloud.com/n/{namespace_val}/b/{bucket_name}/o/{object_name}"
         logger.info(f"[Simulated OCI Upload] Object: {object_name} -> Bucket: {bucket_name}")
         return {
             "status": "simulated",
             "bucket": bucket_name,
             "object_name": object_name,
+            "oci_url": simulated_url,
             "oci_object_url": simulated_url,
             "size_bytes": len(content_bytes),
             "uploaded_at": timestamp,

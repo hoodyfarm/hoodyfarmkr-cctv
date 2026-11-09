@@ -19,10 +19,17 @@ def test_event_worker_publish_and_process():
     mock_fms = MagicMock()
     mock_fms.send_event_alert.return_value = "success (200)"
 
+    mock_oci = MagicMock()
+    mock_oci.upload_file_to_oci.return_value = {
+        "status": "success",
+        "oci_url": "https://objectstorage.ap-seoul-1.oraclecloud.com/test_url"
+    }
+
     worker = EventWorker(
         ingestion_worker=mock_ingestion,
         video_encoder=mock_encoder,
-        fms_client=mock_fms
+        fms_client=mock_fms,
+        oci_service=mock_oci
     )
 
     event = DetectionEvent(
@@ -42,6 +49,13 @@ def test_event_worker_publish_and_process():
 
     assert worker.total_events_received >= 1
     assert worker.total_clips_created >= 1
+    assert worker.total_uploads_completed >= 2  # clip + frame
     assert worker.total_webhooks_sent >= 1
     assert mock_encoder.encode_clip.called
+    assert mock_oci.upload_file_to_oci.called
     assert mock_fms.send_event_alert.called
+
+    # FMS 호출 인자 검증 (oci_clip_url 및 oci_frame_url이 올바르게 전달되었는지 확인)
+    kwargs = mock_fms.send_event_alert.call_args[1]
+    assert kwargs["oci_clip_url"] == "https://objectstorage.ap-seoul-1.oraclecloud.com/test_url"
+    assert kwargs["oci_frame_url"] == "https://objectstorage.ap-seoul-1.oraclecloud.com/test_url"

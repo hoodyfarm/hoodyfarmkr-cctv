@@ -6,6 +6,8 @@ from src.services.inference_worker import InferenceWorker
 from src.pipeline.event_worker import EventWorker
 from src.infrastructure.storage.video_encoder import VideoEncoder
 from src.infrastructure.webhook.fms_client import FMSWebhookClient
+from src.services.oci_service import OCIDataPipelineService
+from src.infrastructure.google.google_service import GoogleIntegrationService
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,8 @@ class WorkerManager:
             # Infrastructure components
             cls._instance.video_encoder = VideoEncoder(output_dir=clips_dir)
             cls._instance.fms_client = FMSWebhookClient(webhook_url=settings.FMS_WEBHOOK_URL)
+            cls._instance.oci_service = OCIDataPipelineService()
+            cls._instance.google_service = GoogleIntegrationService()
             
             # Ingestion Worker
             cls._instance.ingestion_worker = IngestionWorker(
@@ -35,11 +39,13 @@ class WorkerManager:
                 ring_buffer_sec=10.0
             )
             
-            # Event Worker (Clip creation & Webhook dispatching)
+            # Event Worker (Clip creation, OCI upload & Webhook dispatching)
             cls._instance.event_worker = EventWorker(
                 ingestion_worker=cls._instance.ingestion_worker,
                 video_encoder=cls._instance.video_encoder,
-                fms_client=cls._instance.fms_client
+                fms_client=cls._instance.fms_client,
+                oci_service=cls._instance.oci_service,
+                google_service=cls._instance.google_service
             )
             
             # Inference Worker (AI Detection & Event publishing)
@@ -90,7 +96,10 @@ class WorkerManager:
                 "status": "running" if self.event_worker._running else "stopped",
                 "total_events_received": self.event_worker.total_events_received,
                 "total_clips_created": self.event_worker.total_clips_created,
+                "total_uploads_completed": getattr(self.event_worker, "total_uploads_completed", 0),
                 "total_webhooks_sent": self.event_worker.total_webhooks_sent,
+                "total_sheets_recorded": getattr(self.event_worker, "total_sheets_recorded", 0),
+                "total_drive_uploads": getattr(self.event_worker, "total_drive_uploads", 0),
                 "queue_size": self.event_worker.event_queue.qsize()
             }
         }

@@ -31,12 +31,16 @@ class Settings(BaseSettings):
 
     # Oracle Cloud Infrastructure (OCI) Configuration
     OCI_CONFIG_FILE: str = "~/.oci/config"
+    OCI_CONFIG_DIR: Optional[str] = None
     OCI_PROFILE: str = "DEFAULT"
     OCI_REGION: str = "ap-seoul-1"
+    OCI_NAMESPACE: Optional[str] = None
     OCI_COMPARTMENT_ID: Optional[str] = None
     OCI_OBJECT_STORAGE_NAMESPACE: Optional[str] = None
+    OCI_BUCKET_NAME: Optional[str] = None
     OCI_BUCKET_RAW_VIDEOS: str = "cctv-raw-videos"
     OCI_BUCKET_REFINED_FRAMES: str = "cctv-refined-frames"
+    OCI_PAR_EXPIRY_DAYS: int = 7
 
     # Gemini AI API Configuration (Stage 4)
     GEMINI_API_KEY: Optional[str] = None
@@ -44,6 +48,13 @@ class Settings(BaseSettings):
 
     # External FMS System Notification Webhook (hoodyfarmkr-fms integration)
     FMS_WEBHOOK_URL: Optional[str] = "http://localhost:3000/api/v1/cctv-events"
+
+    # Google Cloud Service Account, Google Drive & Google Sheets Configuration
+    GOOGLE_SERVICE_ACCOUNT_FILE: Optional[str] = None
+    GOOGLE_DRIVE_FOLDER_ID: Optional[str] = None
+    GOOGLE_SHEET_ID: Optional[str] = None
+    GOOGLE_SHEET_RANGE: str = "Events!A:H"
+    GOOGLE_INTEGRATION_ENABLED: bool = True
 
     # Clip & Buffer Configuration (Event Detection)
     CLIP_PRE_EVENT_SEC: float = 3.0
