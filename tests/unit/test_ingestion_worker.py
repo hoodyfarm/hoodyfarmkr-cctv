@@ -34,3 +34,19 @@ def test_ingestion_worker_queue_zero_latency(mock_vcap):
     
     worker.stop()
     assert worker._running is False
+
+def test_ingestion_worker_ring_buffer_around_event():
+    worker = IngestionWorker("rtsp://dummy", target_fps=10.0, ring_buffer_sec=10.0)
+    base_time = 1000.0
+    # Simulate adding frames across time
+    for i in range(50):
+        # timestamps from 995.0 to 1005.0
+        ts = 995.0 + (i * 0.2)
+        worker.ring_buffer.append((ts, np.ones((10, 10, 3), dtype=np.uint8) * i))
+    
+    # Event at base_time 1000.0 with pre=3s, post=3s (997.0 to 1003.0)
+    frames = worker.get_buffered_frames_around(event_time=base_time, pre_sec=3.0, post_sec=3.0)
+    assert len(frames) > 0
+    # Between 997.0 and 1003.0, inclusive with step 0.2
+    assert 25 <= len(frames) <= 35
+
