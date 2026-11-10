@@ -36,7 +36,17 @@ captures/
 dataset_exports/
 spool/
 scratch/
-hoodyfarm-cctv/spool/
+.temp_healing/
+logs/*.json
+logs/*.jsonl
+logs/*.pid
+logs/.*
+
+# External / Legacy repositories & Clasp
+.clasp*.json
+hoodyfarm-*/
+hoodyfarmkr-cctv-clean/
+packages/
 
 # Media & Video Clips & Images
 *.mp4
