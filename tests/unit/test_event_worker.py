@@ -55,7 +55,9 @@ def test_event_worker_publish_and_process():
     assert mock_oci.upload_file_to_oci.called
     assert mock_fms.send_event_alert.called
 
-    # FMS 호출 인자 검증 (oci_clip_url 및 oci_frame_url이 올바르게 전달되었는지 확인)
+    # FMS 호출 인자 검증 (oci_clip_url, oci_frame_url 및 2-tier drive_clip_url/drive_image_url 전달 확인)
     kwargs = mock_fms.send_event_alert.call_args[1]
     assert kwargs["oci_clip_url"] == "https://objectstorage.ap-seoul-1.oraclecloud.com/test_url"
     assert kwargs["oci_frame_url"] == "https://objectstorage.ap-seoul-1.oraclecloud.com/test_url"
+    assert "drive_clip_url" in kwargs
+    assert "drive_image_url" in kwargs

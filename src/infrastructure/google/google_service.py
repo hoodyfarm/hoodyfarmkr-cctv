@@ -54,12 +54,14 @@ class GoogleIntegrationService:
         confidence: float,
         ai_summary: Optional[str] = None,
         clip_path: Optional[str] = None,
+        frame_path: Optional[str] = None,
         oci_clip_url: Optional[str] = None,
         timestamp: Optional[float] = None,
-        status: str = "CONFIRMED"
+        status: str = "CONFIRMED",
+        event_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        1. clip_path가 존재할 경우 Google Drive 업로드 수행
+        1. clip_path 및 frame_path가 존재할 경우 Google Drive 업로드 수행 (Tier 1 SSOT 미디어)
         2. Video Link 결정 (Google Drive Link 우선, 없을 시 OCI Video URL, 로컬 경로 순)
         3. FMS Google Spreadsheet에 8개 표준 필드 Row 추가:
            [Timestamp | Event ID | Camera ID | Detected Object | Confidence | AI Summary | Video Link | Status]
@@ -70,15 +72,26 @@ class GoogleIntegrationService:
 
         drive_result: Optional[Dict[str, Any]] = None
         drive_url: Optional[str] = None
+        drive_image_result: Optional[Dict[str, Any]] = None
+        drive_image_url: Optional[str] = None
 
-        # 1. Google Drive 클립 영상 업로드
+        # 1. Google Drive 클립 영상 업로드 (anyoneWithLink 자동 부여)
         if clip_path:
             try:
-                drive_result = self.drive_client.upload_file(file_path=clip_path)
+                drive_result = self.drive_client.upload_file(file_path=clip_path, make_public=True)
                 if drive_result and drive_result.get("status") == "success":
                     drive_url = drive_result.get("drive_url") or drive_result.get("web_view_link")
             except Exception as e:
-                logger.warning(f"GoogleIntegrationService: Drive upload exception for [{event_id}]: {e}")
+                logger.warning(f"GoogleIntegrationService: Drive clip upload exception for [{event_id}]: {e}")
+
+        # 1-B. Google Drive 스냅샷 이미지 업로드
+        if frame_path:
+            try:
+                drive_image_result = self.drive_client.upload_file(file_path=frame_path, make_public=True)
+                if drive_image_result and drive_image_result.get("status") == "success":
+                    drive_image_url = drive_image_result.get("drive_url") or drive_image_result.get("web_view_link")
+            except Exception as e:
+                logger.warning(f"GoogleIntegrationService: Drive frame upload exception for [{event_id}]: {e}")
 
         # 2. 대표 Video Link 결정 (Drive -> OCI -> Local Path)
         video_link = drive_url or oci_clip_url or (clip_path if clip_path else "N/A")
@@ -91,11 +104,14 @@ class GoogleIntegrationService:
             formatted_time = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         # 4. 시트 열 포맷 [Timestamp | Event ID | Camera ID | Detected Object | Confidence | AI Summary | Video Link | Status]
+        # Detected Object 열에 단독 event_type 코드(INVERTED, CALVING 등)를 우선 기록하여 시트/AppSheet 파서 100% 무결점 보장
+        object_column_value = event_type or detected_object
+
         row_values = [
             formatted_time,
             event_id,
             camera_id,
-            detected_object,
+            object_column_value,
             f"{confidence:.2f}",
             ai_summary or f"{detected_object} detected",
             video_link,
@@ -107,6 +123,9 @@ class GoogleIntegrationService:
         return {
             "status": "success",
             "drive_result": drive_result,
+            "drive_image_result": drive_image_result,
+            "drive_clip_url": drive_url,
+            "drive_image_url": drive_image_url,
             "sheet_result": sheet_result,
             "video_link": video_link,
             "row_values": row_values

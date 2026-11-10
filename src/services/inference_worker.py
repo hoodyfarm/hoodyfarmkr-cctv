@@ -147,11 +147,14 @@ class InferenceWorker:
                 if clip_path:
                     self.clips_generated_count += 1
 
-            # FMS Webhook 전송
+            # FMS Webhook 전송 (단독 event_type 코드 전달)
             is_anomaly = bool(ai_analysis and ai_analysis.is_anomaly)
+            event_type = ai_analysis.event_type if (ai_analysis and hasattr(ai_analysis, "event_type")) else (
+                "ANOMALY" if is_anomaly else "NORMAL"
+            )
             summary = ai_analysis.summary if ai_analysis else f"{tag} detected at CCTV"
             webhook_res = self.clip_service.send_fms_webhook(
-                event_type=f"{tag}_detected",
+                event_type=event_type,
                 detections=detected_targets,
                 clip_path=clip_path,
                 frame_path=event_frame_path,
@@ -234,9 +237,14 @@ class InferenceWorker:
                         DetectionTarget(label=d["label"], confidence=d["confidence"])
                         for d in detected_targets
                     ]
+                    resolved_event_type = (
+                        ai_analysis.event_type if (ai_analysis and hasattr(ai_analysis, "event_type"))
+                        else ("ANOMALY" if (ai_analysis and ai_analysis.is_anomaly) else "NORMAL")
+                    )
                     detection_event = DetectionEvent(
                         event_id=event_id,
                         tag=primary_label,
+                        event_type=resolved_event_type,
                         timestamp=now,
                         detections=targets,
                         frame_path=event_path,

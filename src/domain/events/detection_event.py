@@ -14,6 +14,7 @@ class DetectionEvent(BaseModel):
     event_id: str
     camera_id: str = "default_cctv"
     tag: str
+    event_type: str = "NORMAL"  # 표준 이상행동 코드: INVERTED, CALVING, ESCAPE, ESTRUS, NORMAL 등
     timestamp: float = Field(default_factory=time.time)
     detections: List[DetectionTarget]
     frame_path: str

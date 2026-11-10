@@ -24,8 +24,12 @@ class GeminiVisionService:
         Analyze JPEG frame bytes using Gemini 2.5 Flash model and return CCTVAnalysisResultSchema.
         """
         prompt = custom_prompt or (
-            "Analyze this CCTV camera frame carefully. Detect any objects, animals, or humans. "
-            "Determine if there is any intrusion, motion anomaly, fire, hazard, or unusual event. "
+            "Analyze this CCTV camera frame carefully. Detect cattle, animals, or humans in the farm. "
+            "Identify behavior and anomalies, and classify into event_type: "
+            "'INVERTED' (기립불능, 뒤집힘, 넘어져서 못 일어남), 'CALVING' (분만 임박, 양수 파수, 출산 징후), "
+            "'ESCAPE' (울타리 이탈, 축사 탈출), 'ESTRUS' (발정 승가), 'FIGHTING' (투쟁), 'INTRUSION' (외부인 침입), "
+            "'FIRE' (화재 연기), or 'NORMAL' (정상). "
+            "Set event_type to one of these uppercase codes. "
             "Provide the output strictly matching the required JSON schema with summary in Korean."
         )
 
@@ -78,7 +82,7 @@ class GeminiVisionService:
         """
         return CCTVAnalysisResultSchema(
             is_anomaly=False,
-            event_type="normal",
+            event_type="NORMAL",
             confidence_score=0.96,
             detected_objects=[
                 DetectedObject(label="cattle", confidence=0.98, location="center"),

@@ -39,12 +39,15 @@ class Settings(BaseSettings):
     OCI_OBJECT_STORAGE_NAMESPACE: Optional[str] = None
     OCI_BUCKET_NAME: Optional[str] = None
     OCI_BUCKET_RAW_VIDEOS: str = "cctv-raw-videos"
-    OCI_BUCKET_REFINED_FRAMES: str = "cctv-refined-frames"
+    OCI_BUCKET_REFINED_FRAMES: str = "cctv-AI-VISION"
     OCI_PAR_EXPIRY_DAYS: int = 7
 
     # Gemini AI API Configuration (Stage 4)
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-2.5-flash"
+
+    # 2-Tier Fallback Media Streaming Configuration (Tailscale 3500X & Google Drive)
+    TAILSCALE_HOST_URL: str = "http://100.75.197.92:8000"
 
     # External FMS System Notification Webhook (hoodyfarmkr-fms integration)
     FMS_WEBHOOK_URL: Optional[str] = "http://localhost:3000/api/v1/cctv-events"

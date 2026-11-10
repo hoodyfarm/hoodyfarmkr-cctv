@@ -165,25 +165,14 @@ class OCIDataPipelineService:
                 create_preauthenticated_request_details=par_details
             )
             access_uri = par_res.data.access_uri
-            endpoint = None
-            if hasattr(self.client, "base_client"):
-                endpoint_attr = getattr(self.client.base_client, "endpoint", None)
-                if isinstance(endpoint_attr, str) and endpoint_attr:
-                    endpoint = endpoint_attr
-                elif hasattr(self.client.base_client, "get_endpoint"):
-                    endpoint = self.client.base_client.get_endpoint()
-
-            if not endpoint or not isinstance(endpoint, str):
-                region = getattr(self, "region", "ap-seoul-1")
-                endpoint = f"https://objectstorage.{region}.oraclecloud.com"
-
-            endpoint = endpoint.rstrip("/")
+            region = getattr(self, "region", None) or "ap-osaka-1"
+            endpoint = f"https://objectstorage.{region}.oraclecloud.com"
             par_url = f"{endpoint}{access_uri}"
             logger.info(f"Generated OCI PAR URL for '{object_name}': {par_url}")
             return par_url
         except Exception as e:
             logger.warning(f"Failed to generate OCI PAR URL for '{object_name}': {e}")
-            region = getattr(self, "region", "ap-seoul-1")
+            region = getattr(self, "region", "ap-osaka-1")
             return f"https://objectstorage.{region}.oraclecloud.com/n/{self.namespace}/b/{bucket_name}/o/{object_name}"
 
     def _put_object(
@@ -212,7 +201,7 @@ class OCIDataPipelineService:
                 # Generate PAR URL or accessible OCI URL
                 oci_url = self._generate_par_or_public_url(bucket_name, object_name)
                 if not oci_url:
-                    region = getattr(self, "region", "ap-seoul-1")
+                    region = getattr(self, "region", "ap-osaka-1")
                     oci_url = f"https://objectstorage.{region}.oraclecloud.com/n/{self.namespace}/b/{bucket_name}/o/{object_name}"
 
                 return {
@@ -232,7 +221,7 @@ class OCIDataPipelineService:
 
         # Simulated response when OCI config file is not yet deployed on local dev machine
         namespace_val = self.namespace or "simulated_namespace"
-        region_val = self.region or "ap-seoul-1"
+        region_val = self.region or "ap-osaka-1"
         simulated_url = f"https://objectstorage.{region_val}.oraclecloud.com/n/{namespace_val}/b/{bucket_name}/o/{object_name}"
         logger.info(f"[Simulated OCI Upload] Object: {object_name} -> Bucket: {bucket_name}")
         return {

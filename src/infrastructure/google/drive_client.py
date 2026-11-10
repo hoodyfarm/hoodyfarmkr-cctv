@@ -33,15 +33,59 @@ class GoogleDriveClient:
     def is_simulation_mode(self) -> bool:
         return not (self.auth_manager and self.auth_manager.is_configured)
 
+    def make_file_publicly_readable(self, file_id: str) -> bool:
+        """
+        AppSheet 스트리밍 및 모바일 뷰어 403 방지를 위해
+        업로드된 파일에 anyone (reader) 권한을 부여합니다.
+        (permissions.create: {'role': 'reader', 'type': 'anyone'})
+        """
+        if self.is_simulation_mode:
+            logger.info(f"GoogleDriveClient [Simulation]: Set anyoneWithLink permission on {file_id}")
+            return True
+
+        token = self.auth_manager.get_access_token()
+        if not token:
+            logger.warning("GoogleDriveClient: No access token to set file permissions.")
+            return False
+
+        url = f"{DRIVE_API_BASE}/{file_id}/permissions"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        body = {
+            "role": "reader",
+            "type": "anyone"
+        }
+
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                res = client.post(url, headers=headers, json=body)
+                if res.status_code in (200, 201):
+                    logger.info(f"GoogleDriveClient: Successfully set public reader permission on {file_id}")
+                    return True
+                else:
+                    logger.warning(
+                        f"GoogleDriveClient: Failed to set public permission on {file_id} "
+                        f"({res.status_code}): {res.text}"
+                    )
+                    return False
+        except Exception as e:
+            logger.warning(f"GoogleDriveClient: Exception setting permissions on {file_id}: {e}")
+            return False
+
     def upload_file(
         self,
         file_path: str,
         name: Optional[str] = None,
         folder_id: Optional[str] = None,
-        mime_type: Optional[str] = None
+        mime_type: Optional[str] = None,
+        make_public: bool = True
     ) -> Dict[str, Any]:
         """
         로컬 파일을 Google Drive에 업로드하고 webViewLink 반환.
+        make_public=True인 경우 anyoneWithLink 권한(reader)을 자동 부여하여
+        AppSheet 모바일 스트리밍 403 에러를 원천 차단.
         Service Account 미설정 시 mock URL 반환.
         """
         file_name = name or os.path.basename(file_path)
@@ -115,6 +159,10 @@ class GoogleDriveClient:
                     file_id = data.get("id")
                     web_link = data.get("webViewLink") or f"https://drive.google.com/file/d/{file_id}/view"
                     logger.info(f"GoogleDriveClient: Successfully uploaded {file_name} (ID: {file_id})")
+
+                    if make_public and file_id:
+                        self.make_file_publicly_readable(file_id)
+
                     return {
                         "status": "success",
                         "mode": "real",

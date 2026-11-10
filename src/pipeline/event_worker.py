@@ -150,7 +150,12 @@ class EventWorker:
                 primary_label = event.detections[0].label
                 max_conf = max(d.confidence for d in event.detections)
 
+            # event_type 단독 필드 결정 (INVERTED, CALVING, ESCAPE, ESTRUS, NORMAL 등)
+            resolved_event_type = getattr(event, "event_type", None) or ("ANOMALY" if event.is_anomaly else "NORMAL")
+
             google_res = None
+            drive_clip_url = None
+            drive_image_url = None
             try:
                 google_res = self.google_service.process_event_record(
                     event_id=event.event_id,
@@ -159,29 +164,35 @@ class EventWorker:
                     confidence=max_conf,
                     ai_summary=event.ai_summary,
                     clip_path=clip_path,
+                    frame_path=event.frame_path,
                     oci_clip_url=oci_clip_url,
                     timestamp=event.timestamp,
-                    status="ALERT" if event.is_anomaly else "CONFIRMED"
+                    status="ALERT" if event.is_anomaly else "CONFIRMED",
+                    event_type=resolved_event_type
                 )
                 if google_res and google_res.get("status") == "success":
                     self.total_sheets_recorded += 1
+                    drive_clip_url = google_res.get("drive_clip_url")
+                    drive_image_url = google_res.get("drive_image_url")
                     if google_res.get("drive_result", {}).get("status") == "success":
                         self.total_drive_uploads += 1
             except Exception as e:
                 logger.warning(f"EventWorker: Google integration error for event [{event.event_id}]: {e}")
 
-            # FMS Webhook 전송 (oci_clip_url, oci_frame_url 포함)
+            # FMS Webhook 전송 (2-Tier Fallback: Tier 1 Drive, Tier 2 Tailscale)
             detections_dict = [d.model_dump() for d in event.detections]
             res = self.fms_client.send_event_alert(
                 event_id=event.event_id,
-                event_type=f"{event.tag}_detected",
+                event_type=resolved_event_type,
                 detections=detections_dict,
                 clip_path=clip_path,
                 frame_path=event.frame_path,
                 ai_summary=event.ai_summary,
                 is_anomaly=event.is_anomaly,
                 oci_clip_url=oci_clip_url,
-                oci_frame_url=oci_frame_url
+                oci_frame_url=oci_frame_url,
+                drive_clip_url=drive_clip_url,
+                drive_image_url=drive_image_url
             )
 
             if "success" in res:

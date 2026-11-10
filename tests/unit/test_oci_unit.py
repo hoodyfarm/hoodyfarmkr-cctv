@@ -3,13 +3,14 @@ import tempfile
 import pytest
 from unittest.mock import MagicMock, patch
 from src.services.oci_service import OCIDataPipelineService
+from src.config import settings
 
 @pytest.mark.unit
 def test_oci_upload_frame(mock_jpeg_bytes):
     service = OCIDataPipelineService()
     res = service.upload_frame_to_oci(mock_jpeg_bytes, "test_cam/frame_01.jpg", metadata={"cam": "01"})
     assert res["status"] in ["simulated", "success"]
-    assert res["bucket"] == "cctv-refined-frames"
+    assert res["bucket"] in ["cctv-refined-frames", "cctv-AI-VISION"]
     assert res["object_name"] == "test_cam/frame_01.jpg"
     assert "oci_url" in res
 
@@ -41,7 +42,6 @@ def test_oci_sdk_put_object_and_par_mock():
     mock_par_res = MagicMock()
     mock_par_res.data.access_uri = "/p/sample-par-token/n/test-ns/b/cctv-raw-videos/o/test.mp4"
     mock_client.create_preauthenticated_request.return_value = mock_par_res
-    mock_client.base_client.get_endpoint.return_value = "https://objectstorage.ap-seoul-1.oraclecloud.com"
 
     service = OCIDataPipelineService()
     service.client = mock_client
@@ -50,7 +50,7 @@ def test_oci_sdk_put_object_and_par_mock():
     res = service.upload_video_clip_to_oci(b"video_bytes", "test.mp4")
     assert res["status"] == "success"
     assert res["etag"] == "mock_etag_123"
-    assert "https://objectstorage.ap-seoul-1.oraclecloud.com/p/sample-par-token" in res["oci_url"]
+    assert f"https://objectstorage.{service.region}.oraclecloud.com/p/sample-par-token" in res["oci_url"]
     assert mock_client.put_object.called
     assert mock_client.create_preauthenticated_request.called
 

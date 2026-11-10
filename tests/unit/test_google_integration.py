@@ -101,7 +101,7 @@ def test_google_integration_service_pipeline_format(tmp_path):
     assert row_values[7] == "CONFIRMED"
 
 def test_google_drive_and_sheets_real_api_mock(tmp_path):
-    """Google Drive 및 Sheets 실제 API 호출 분기 모의(Mocking) 검증"""
+    """Google Drive 및 Sheets 실제 API 호출 분기 모의(Mocking) 및 anyone 권한 부여 검증"""
     test_file = tmp_path / "mock_file.mp4"
     test_file.write_text("data")
 
@@ -120,10 +120,16 @@ def test_google_drive_and_sheets_real_api_mock(tmp_path):
         }
         mock_post.return_value = mock_resp
 
-        drive_res = drive_client.upload_file(file_path=str(test_file))
+        drive_res = drive_client.upload_file(file_path=str(test_file), make_public=True)
         assert drive_res["status"] == "success"
         assert drive_res["mode"] == "real"
         assert drive_res["file_id"] == "real_file_999"
+
+        # Verify permissions call was made (files upload + permissions create)
+        assert mock_post.call_count >= 2
+        perm_call = mock_post.call_args_list[-1]
+        assert "real_file_999/permissions" in perm_call[0][0]
+        assert perm_call[1]["json"] == {"role": "reader", "type": "anyone"}
 
     # Sheets Real API mock
     sheets_client = GoogleSheetsClient(

@@ -26,10 +26,14 @@ class FMSWebhookClient:
         ai_summary: Optional[str] = None,
         is_anomaly: bool = False,
         oci_clip_url: Optional[str] = None,
-        oci_frame_url: Optional[str] = None
+        oci_frame_url: Optional[str] = None,
+        drive_clip_url: Optional[str] = None,
+        drive_image_url: Optional[str] = None,
+        tailscale_clip_url: Optional[str] = None,
+        tailscale_image_url: Optional[str] = None
     ) -> str:
         """
-        FMS Webhook 서버로 이벤트 알림, OCI URL 및 생성된 클립 메타데이터 전송
+        FMS Webhook 서버로 이벤트 알림 및 2-Tier Fallback 미디어 URL(Tier 1: Drive, Tier 2: Tailscale) 전송
         """
         if not self.webhook_url:
             logger.info("FMSWebhookClient: FMS_WEBHOOK_URL is not configured. Webhook skipped.")
@@ -37,6 +41,15 @@ class FMSWebhookClient:
 
         clip_filename = os.path.basename(clip_path) if clip_path else None
         clip_size_bytes = os.path.getsize(clip_path) if clip_path and os.path.exists(clip_path) else 0
+
+        # Tailscale 기본 URL 폴백 계산 (Tailscale 3500X 직통: http://100.75.197.92:8000)
+        ts_base = getattr(settings, "TAILSCALE_HOST_URL", "http://100.75.197.92:8000").rstrip("/")
+        if not tailscale_clip_url and clip_filename:
+            tailscale_clip_url = f"{ts_base}/api/v1/pipeline/captures/view/clips/{clip_filename}"
+
+        frame_filename = os.path.basename(frame_path) if frame_path else None
+        if not tailscale_image_url and frame_filename:
+            tailscale_image_url = f"{ts_base}/api/v1/pipeline/captures/view/events/{frame_filename}"
 
         payload = {
             "event_source": "hoodyfarmkr-cctv",
@@ -50,11 +63,21 @@ class FMSWebhookClient:
                 "file_path": clip_path,
                 "file_size_bytes": clip_size_bytes,
                 "duration_seconds": 6.0,
-                "oci_url": oci_clip_url
+                "oci_url": oci_clip_url,
+                "drive_clip_url": drive_clip_url,
+                "tailscale_clip_url": tailscale_clip_url
             } if clip_path else None,
             "frame_path": frame_path,
             "oci_clip_url": oci_clip_url,
             "oci_frame_url": oci_frame_url,
+            # 2-Tier Fallback Top-Level Media Fields
+            "drive_clip_url": drive_clip_url,
+            "drive_image_url": drive_image_url,
+            "tailscale_clip_url": tailscale_clip_url,
+            "tailscale_image_url": tailscale_image_url,
+            # FMS 통합 스트리밍/스냅샷 필드 (Tier 1 -> Tier 2 -> OCI)
+            "video_clip_url": drive_clip_url or tailscale_clip_url or oci_clip_url,
+            "snapshot_url": drive_image_url or tailscale_image_url or oci_frame_url,
             "summary": ai_summary or f"{event_type} detected by CCTV Pipeline",
             "status": "alert"
         }
