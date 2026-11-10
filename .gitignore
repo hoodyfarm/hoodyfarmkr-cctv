@@ -52,3 +52,8 @@ hoodyfarm-cctv/spool/
 *.pt
 *.onnx
 *.engine
+
+# Node deps & binaries
+node_modules/
+**/node_modules/
+tools/code.exe
