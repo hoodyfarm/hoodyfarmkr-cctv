@@ -51,7 +51,7 @@ class WorkerManager:
             # Inference Worker (AI Detection & Event publishing)
             cls._instance.inference_worker = InferenceWorker(
                 ingestion_worker=cls._instance.ingestion_worker,
-                yolo_model_path="yolo11n.pt",
+                yolo_model_path=settings.YOLO_MODEL_PATH,
                 poll_interval=1.0,
                 enable_gemini=bool(settings.GEMINI_API_KEY and "your_" not in settings.GEMINI_API_KEY),
                 event_worker=cls._instance.event_worker
@@ -73,6 +73,13 @@ class WorkerManager:
         self.event_worker.stop()
         self.ingestion_worker.stop()
         logger.info("WorkerManager: All workers stopped.")
+
+    def trigger_once(self):
+        """수동 트리거: 링 버퍼의 최신 프레임 1장을 정식 파이프라인(process_frame)으로 처리"""
+        frames = self.ingestion_worker.get_recent_frames(1)
+        if not frames:
+            return None
+        return self.inference_worker.process_frame(frames[-1])
 
     def get_telemetry(self):
         """모바일/대시보드용 실시간 관제 메트릭 집계"""

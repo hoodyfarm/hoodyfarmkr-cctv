@@ -43,16 +43,17 @@ class FMSWebhookClient:
         clip_size_bytes = os.path.getsize(clip_path) if clip_path and os.path.exists(clip_path) else 0
 
         # Tailscale 기본 URL 폴백 계산 (Tailscale 3500X 직통: http://100.75.197.92:8000)
-        ts_base = getattr(settings, "TAILSCALE_HOST_URL", "http://100.75.197.92:8000").rstrip("/")
-        if not tailscale_clip_url and clip_filename:
+        ts_base = (settings.TAILSCALE_HOST_URL or "").rstrip("/")
+        if ts_base and not tailscale_clip_url and clip_filename:
             tailscale_clip_url = f"{ts_base}/api/v1/pipeline/captures/view/clips/{clip_filename}"
 
         frame_filename = os.path.basename(frame_path) if frame_path else None
-        if not tailscale_image_url and frame_filename:
+        if ts_base and not tailscale_image_url and frame_filename:
             tailscale_image_url = f"{ts_base}/api/v1/pipeline/captures/view/events/{frame_filename}"
 
         payload = {
             "event_source": "hoodyfarmkr-cctv",
+            "farm_id": settings.FARM_ID,
             "event_id": event_id,
             "event_type": event_type,
             "detected_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

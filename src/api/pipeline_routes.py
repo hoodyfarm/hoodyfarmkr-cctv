@@ -6,10 +6,11 @@ from typing import Dict, Any, Optional
 import datetime
 
 from src.config import settings
-from src.services.orchestrator import pipeline_orchestrator
 from src.services.worker_manager import worker_manager
 
 router = APIRouter(prefix="/api/v1/pipeline", tags=["OCI Data Pipeline"])
+# Media links are opened from FMS/mobile browsers (no custom headers): separate unauthenticated router
+media_router = APIRouter(prefix="/api/v1/pipeline", tags=["Media View"])
 
 class PipelineTriggerRequest(BaseModel):
     camera_id: str = "cam_01"
@@ -17,29 +18,22 @@ class PipelineTriggerRequest(BaseModel):
     note: Optional[str] = "Manual pipeline trigger"
 
 
-@router.post("/capture-and-upload")
-async def capture_and_upload_legacy(payload: Optional[PipelineTriggerRequest] = None) -> Dict[str, Any]:
-    """
-    Legacy compatibility endpoint for integration tests.
-    """
-    result = await pipeline_orchestrator.run_pipeline_cycle()
-    return {
-        "status": "success",
-        "oci_upload_result": {"status": "success", "oci_url": result.get("oci_url")},
-        "cycle_result": result
-    }
+def _run_trigger() -> Dict[str, Any]:
+    result = worker_manager.trigger_once()
+    if result is None:
+        raise HTTPException(status_code=503, detail="No frame available from ingestion worker (camera not connected)")
+    return result
+
+@router.post("/capture-and-upload", deprecated=True)
+def capture_and_upload_legacy(payload: Optional[PipelineTriggerRequest] = None) -> Dict[str, Any]:
+    """Deprecated alias of /trigger (kept for backward compatibility)."""
+    result = _run_trigger()
+    return {"status": "success", "oci_upload_result": {"status": "success", "oci_url": None}, "cycle_result": result}
 
 @router.post("/trigger")
-async def trigger_pipeline_cycle(payload: Optional[PipelineTriggerRequest] = None) -> Dict[str, Any]:
-    """
-    Trigger end-to-end pipeline cycle:
-    [RTSP Frame Capture -> Motion Check -> Gemini 2.5 AI -> PostgreSQL Log -> OCI Upload -> Webhook Alert]
-    """
-    try:
-        result = await pipeline_orchestrator.run_pipeline_cycle()
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Pipeline execution failed: {str(e)}")
+def trigger_pipeline_cycle(payload: Optional[PipelineTriggerRequest] = None) -> Dict[str, Any]:
+    """Process the latest buffered frame through the unified worker pipeline (YOLO -> Gemini -> EventWorker)."""
+    return _run_trigger()
 
 @router.get("/status")
 def get_pipeline_status() -> Dict[str, Any]:
@@ -50,10 +44,8 @@ def get_pipeline_status() -> Dict[str, Any]:
     return {
         "status": "active",
         "app_name": settings.APP_NAME,
-        "onvif_host": settings.ONVIF_HOST,
         "gemini_model": settings.GEMINI_MODEL,
-        "postgres_host": settings.POSTGRES_HOST,
-        "total_processed": pipeline_orchestrator._total_processed,
+        "farm_id": settings.FARM_ID,
         "workers": telemetry
     }
 
@@ -101,7 +93,7 @@ def list_captured_files(limit: int = 20) -> Dict[str, Any]:
         "legacy_frames": recent_legacy
     }
 
-@router.get("/captures/view/{folder}/{filename}")
+@media_router.get("/captures/view/{folder}/{filename}")
 def view_captured_file(folder: str, filename: str):
     """
     Directly view or download captured frame (.jpg) or clip (.mp4) on mobile browser.
@@ -109,6 +101,8 @@ def view_captured_file(folder: str, filename: str):
     if folder not in ["events", "spool", "frames", "clips"]:
         raise HTTPException(status_code=400, detail="Invalid folder type. Use 'frames' or 'clips'.")
     
+    if filename != os.path.basename(filename) or filename.startswith("."):
+        raise HTTPException(status_code=400, detail="Invalid filename")
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     file_path = os.path.join(base_dir, "captures", folder, filename)
     
