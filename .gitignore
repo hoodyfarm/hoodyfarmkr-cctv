@@ -57,3 +57,6 @@ hoodyfarm-cctv/spool/
 node_modules/
 **/node_modules/
 tools/code.exe
+
+captures/outbox/
+*.sqlite3

@@ -17,6 +17,7 @@ from src.domain.events.detection_event import DetectionEvent
 from src.domain.events.event_envelope import CCTVEventEnvelopeV1, MediaUrls
 from src.infrastructure.storage.video_encoder import VideoEncoder
 from src.infrastructure.webhook.fms_client import FMSWebhookClient
+from src.infrastructure.webhook.outbox import WebhookOutbox
 from src.services.oci_service import OCIDataPipelineService
 from src.infrastructure.google.google_service import GoogleIntegrationService
 
@@ -26,12 +27,12 @@ logger = logging.getLogger(__name__)
 class EventWorker:
     """
     이벤트 전용 비동기 소비자 워커 (Event Worker).
-    - InferenceWorker가 발행한 DetectionEvent를 수신
-    - 사후 대기(post_sec)를 거쳐 FrameSourcePort 링 버퍼에서 전후 프레임 획득
+    - InferenceWorker가 발행한 DetectionEvent를 수신 (카메라별 FrameSource 레지스트리 지원)
+    - 사후 대기(post_sec)를 거쳐 해당 카메라의 FrameSourcePort 링 버퍼에서 전후 프레임 획득
     - ClipEncoderPort로 MP4 클립 생성
-    - ObjectStoragePort(OCI)에 영상 클립 및 스냅샷 업로드
-    - WorkspaceSinkPort(Google Drive + Sheets)에 업로드 및 행 추가
+    - ObjectStoragePort(OCI) 및 WorkspaceSinkPort(Google Drive + Sheets)에 업로드
     - CCTVEventEnvelopeV1 표준 계약을 조립하여 EventNotifierPort(FMS Webhook)로 발송
+    - 발송 실패 시 WebhookOutbox(로컬 영속 큐 + DLQ)에 적재하고 백그라운드에서 지수 백오프 재시도
     """
 
     def __init__(
@@ -45,8 +46,11 @@ class EventWorker:
         farm_id: Optional[str] = None,
         tailscale_host_url: Optional[str] = None,
         media_priority: Optional[List[str]] = None,
+        outbox: Optional[WebhookOutbox] = None,
+        frame_sources: Optional[Dict[str, FrameSourcePort]] = None,
     ):
         self.ingestion_worker = ingestion_worker
+        self.frame_sources: Dict[str, FrameSourcePort] = dict(frame_sources or {})
         self.video_encoder = video_encoder
         self.fms_client = fms_client
         self.oci_service = oci_service or OCIDataPipelineService()
@@ -54,18 +58,28 @@ class EventWorker:
         self.farm_id = farm_id
         self.tailscale_host_url = tailscale_host_url
         self.media_priority = media_priority or ["drive", "tailscale", "oci"]
+        self.outbox: Optional[WebhookOutbox] = outbox
         self.event_queue: queue.Queue[DetectionEvent] = queue.Queue(maxsize=max_queue_size)
 
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self._last_outbox_flush = 0.0
 
         # Telemetry
         self.total_events_received = 0
         self.total_clips_created = 0
         self.total_uploads_completed = 0
         self.total_webhooks_sent = 0
+        self.total_webhooks_queued = 0
         self.total_sheets_recorded = 0
         self.total_drive_uploads = 0
+
+    def register_frame_source(self, camera_id: str, source: FrameSourcePort) -> None:
+        """다중 카메라 구성을 위해 camera_id별 FrameSourcePort를 등록합니다."""
+        self.frame_sources[camera_id] = source
+
+    def resolve_frame_source(self, camera_id: str) -> FrameSourcePort:
+        return self.frame_sources.get(camera_id, self.ingestion_worker)
 
     def start(self):
         """이벤트 처리 백그라운드 스레드 시작"""
@@ -93,14 +107,36 @@ class EventWorker:
             logger.warning(f"EventWorker: Event queue full! Dropped event [{event.event_id}]")
             return False
 
+    def flush_outbox_once(self) -> Dict[str, int]:
+        """Outbox에 대기 중인 만기 이벤트를 즉시 재전송 시도합니다."""
+        if self.outbox is None:
+            return {"processed": 0, "delivered": 0, "retried": 0, "dlq": 0}
+
+        def _sender(env: CCTVEventEnvelopeV1) -> str:
+            if isinstance(self.fms_client, FMSWebhookClient) or hasattr(self.fms_client, "notify"):
+                return self.fms_client.notify(env)
+            return "skipped (no notifier)"
+
+        stats = self.outbox.process_due(_sender)
+        if stats.get("delivered", 0) > 0:
+            self.total_webhooks_sent += stats["delivered"]
+        return stats
+
     def _run_loop(self):
         while self._running:
             try:
                 event = self.event_queue.get(timeout=0.5)
+                self._process_single_event(event)
             except queue.Empty:
-                continue
+                pass
 
-            self._process_single_event(event)
+            now = time.time()
+            if self.outbox is not None and (now - self._last_outbox_flush >= 5.0):
+                self._last_outbox_flush = now
+                try:
+                    self.flush_outbox_once()
+                except Exception as e:
+                    logger.warning(f"EventWorker: Outbox flush error: {e}")
 
     def _build_envelope(
         self,
@@ -160,11 +196,12 @@ class EventWorker:
         """
         1) 실제 FMSWebhookClient 인스턴스이면 notify(envelope)로 표준 계약 발송
         2) 테스트 Mock이나 레거시 구현체처럼 send_event_alert만 설정된 경우 호환 호출 유지
+        3) 실패(failed/error) 시 Outbox가 설정되어 있으면 로컬 큐에 영속 적재
         """
         if isinstance(self.fms_client, FMSWebhookClient):
-            return self.fms_client.notify(envelope)
-        if hasattr(self.fms_client, "send_event_alert"):
-            return self.fms_client.send_event_alert(
+            res = self.fms_client.notify(envelope)
+        elif hasattr(self.fms_client, "send_event_alert"):
+            res = self.fms_client.send_event_alert(
                 event_id=envelope.event_id,
                 event_type=envelope.event_type,
                 detections=detections_dict,
@@ -177,9 +214,23 @@ class EventWorker:
                 drive_clip_url=drive_clip_url,
                 drive_image_url=drive_image_url,
             )
-        if hasattr(self.fms_client, "notify"):
-            return self.fms_client.notify(envelope)
-        return "skipped (no notifier)"
+        elif hasattr(self.fms_client, "notify"):
+            res = self.fms_client.notify(envelope)
+        else:
+            res = "skipped (no notifier)"
+
+        if isinstance(res, str) and (res.startswith("failed") or res.startswith("error")):
+            if self.outbox is not None:
+                try:
+                    self.outbox.enqueue(envelope, error=res, initial_attempts=1)
+                    self.total_webhooks_queued += 1
+                    logger.warning(
+                        f"EventWorker: Enqueued failed event [{envelope.event_id}] to WebhookOutbox ({res})"
+                    )
+                except Exception as e:
+                    logger.error(f"EventWorker: Failed to enqueue event [{envelope.event_id}] to Outbox: {e}")
+
+        return res
 
     def _process_single_event(self, event: DetectionEvent):
         """개별 이벤트 처리: 사후 프레임 축적 대기 -> 클립 생성 -> OCI 업로드 -> 웹훅 발송"""
@@ -189,7 +240,8 @@ class EventWorker:
             if wait_time > 0:
                 time.sleep(wait_time)
 
-            frames = self.ingestion_worker.get_buffered_frames_around(
+            frame_source = self.resolve_frame_source(event.camera_id)
+            frames = frame_source.get_buffered_frames_around(
                 event_time=event.timestamp,
                 pre_sec=event.pre_sec,
                 post_sec=event.post_sec,
@@ -197,7 +249,7 @@ class EventWorker:
 
             clip_path = None
             if frames:
-                clip_fps = getattr(self.ingestion_worker, "target_fps", 5.0)
+                clip_fps = getattr(frame_source, "target_fps", 5.0)
                 clip_path = self.video_encoder.encode_clip(
                     frames=frames,
                     tag=event.tag,
