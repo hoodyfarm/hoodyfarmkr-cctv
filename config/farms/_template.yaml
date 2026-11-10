@@ -1,0 +1,49 @@
+# =================================================================
+# 타 농장 이식용 표준 프로파일 템플릿 (_template.yaml)
+# 신규 농장 온보딩 시 이 파일을 config/farms/<farm_id>.yaml 로 복사하고
+# .env에 FARM_PROFILE_PATH=config/farms/<farm_id>.yaml 을 지정하세요.
+# =================================================================
+
+farm_id: "${FARM_ID:-sample_farm}"
+farm_name: "Sample Smart Farm"
+
+cameras:
+  - camera_id: "cam_01"
+    name: "Main Barn Camera"
+    zone: "zone_a"
+    rtsp_url: "${RTSP_STREAM_URL:-}"
+    target_fps: 5.0
+    ring_buffer_sec: 10.0
+    enabled: true
+
+rules:
+  species: "cattle"          # cattle | swine | poultry | general
+  target_classes:
+    - "cow"
+    - "person"
+  confidence_threshold: 0.25
+  event_codes:
+    - "INVERTED"
+    - "CALVING"
+    - "ESCAPE"
+    - "ESTRUS"
+    - "INTRUSION"
+    - "FIRE"
+    - "NORMAL"
+  cooldown_sec: 10.0
+  pre_event_sec: 3.0
+  post_event_sec: 3.0
+
+storage:
+  media_priority:
+    - "drive"
+    - "tailscale"
+    - "oci"
+  spool_retention_minutes: 15
+  event_retention_days: 7
+  max_total_mb: 2048
+
+notification:
+  fms_webhook_url: "${FMS_WEBHOOK_URL:-}"
+  tailscale_host_url: "${TAILSCALE_HOST_URL:-}"
+  timeout_sec: 4.0
