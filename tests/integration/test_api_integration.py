@@ -9,7 +9,9 @@ def test_health_endpoint(client):
     assert data["app"] == "hoodyfarmkr-cctv"
 
 @pytest.mark.integration
-def test_pipeline_capture_and_upload_api(client):
+def test_pipeline_capture_and_upload_api(client, monkeypatch):
+    from src.services.worker_manager import worker_manager
+    monkeypatch.setattr(worker_manager, "trigger_once", lambda: {"status": "filtered"})
     res = client.post("/api/v1/pipeline/capture-and-upload", json={"camera_id": "test_cam_01", "note": "Integration test"})
     assert res.status_code == 200
     data = res.json()

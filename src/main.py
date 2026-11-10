@@ -1,11 +1,12 @@
 import logging
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
 
 from src.config import settings
 from src.api.camera_routes import router as camera_router
-from src.api.pipeline_routes import router as pipeline_router
+from src.api.pipeline_routes import router as pipeline_router, media_router
+from src.api.security import require_api_key
 from src.api.gemini_routes import router as gemini_router
 from src.core.scheduler import scheduler
 from src.services.worker_manager import worker_manager
@@ -24,19 +25,23 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["X-API-Key", "Content-Type"],
 )
 
-app.include_router(camera_router)
-app.include_router(pipeline_router)
-app.include_router(gemini_router)
+_auth = [Depends(require_api_key)]
+app.include_router(camera_router, dependencies=_auth)
+app.include_router(pipeline_router, dependencies=_auth)
+app.include_router(gemini_router, dependencies=_auth)
+app.include_router(media_router)
 
 @app.on_event("startup")
 def on_startup():
     logger.info(f"Starting {settings.APP_NAME} in environment: {settings.ENVIRONMENT}")
+    if not settings.API_KEY:
+        logger.warning("API_KEY is not set: API authentication is DISABLED (development only).")
     scheduler.start()
     try:
         worker_manager.start_all()

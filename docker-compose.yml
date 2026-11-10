@@ -7,7 +7,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_cctv_pass}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-cctv_db}
     ports:
       - "5432:5432"
@@ -32,7 +32,7 @@ services:
     environment:
       - POSTGRES_HOST=cctv_db
       - POSTGRES_PORT=5432
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_cctv_pass}@cctv_db:5432/${POSTGRES_DB:-cctv_db}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@cctv_db:5432/${POSTGRES_DB:-cctv_db}
     depends_on:
       cctv_db:
         condition: service_healthy

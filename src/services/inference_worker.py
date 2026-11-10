@@ -61,6 +61,7 @@ class InferenceWorker:
         
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self._infer_lock = threading.Lock()
         
         # 관심 객체 필터 (소: cow, 사람: person, 기타 가축)
         self.target_classes = {"cow", "person", "horse", "sheep", "dog"}
@@ -171,22 +172,18 @@ class InferenceWorker:
             logger.error(f"InferenceWorker: Failed to process event clip and webhook: {e}")
 
 
-    def _run_loop(self):
-        """핵심 추론 루프: 큐 수신 -> spool 저장 -> 1차 YOLO 필터 -> 이벤트 승격(events) -> 2차 Gemini 전송"""
-        while self._running:
-            frame = self.ingestion_worker.get_latest_frame(timeout=self.poll_interval)
-            if frame is None:
-                continue
-
+    def process_frame(self, frame: np.ndarray) -> Optional[Dict[str, Any]]:
+        """단일 프레임 처리: spool 저장 -> YOLO 필터 -> 이벤트 승격 -> Gemini -> EventWorker 발행. 루프/수동 트리거 공용."""
+        with self._infer_lock:
             self.total_inferences += 1
-            
+        
             # 1. 1차 임시 spool 폴더에 단기 기록
             spool_path = self._save_spool_frame(frame)
-            
+        
             # 2. 로컬 1차 YOLO 추론 (3500X CPU 42ms 초고속)
             results = self.yolo_model(frame, verbose=False)
             boxes = results[0].boxes
-            
+        
             detected_targets = []
             for box in boxes:
                 cls_name = self.yolo_model.names[int(box.cls[0])]
@@ -209,7 +206,7 @@ class InferenceWorker:
                 # 3. 중요 이벤트 발생 시: captures/events/ 로 공식 이관!
                 primary_label = detected_targets[0]["label"]
                 event_path = self._promote_to_event(frame, tag=primary_label)
-                
+            
                 # 4. events에 이관된 정선된 프레임만 Gemini AI로 전송 (비용 95% 절감!)
                 ai_analysis = None
                 if self.enable_gemini:
@@ -231,7 +228,7 @@ class InferenceWorker:
                 if now - self.last_event_time >= self.event_cooldown_sec:
                     self.last_event_time = now
                     clip_status = "processing"
-                    
+                
                     event_id = f"evt_{int(now * 1000)}"
                     targets = [
                         DetectionTarget(label=d["label"], confidence=d["confidence"])
@@ -275,6 +272,15 @@ class InferenceWorker:
                     "yolo_detections": detected_targets,
                     "ai_analysis": ai_analysis.dict() if ai_analysis else None
                 }
+            return self.last_result
+
+    def _run_loop(self):
+        """핵심 추론 루프: 큐 수신 -> process_frame -> 주기적 청소"""
+        while self._running:
+            frame = self.ingestion_worker.get_latest_frame(timeout=self.poll_interval)
+            if frame is None:
+                continue
+            self.process_frame(frame)
 
             # 5. 주기적 디스크 청소 (5분 주기)
             if time.time() - self.last_cleanup_time > 300:
