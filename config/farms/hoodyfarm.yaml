@@ -1,0 +1,58 @@
+# =================================================================
+# 후디팜 (hoodyfarm) 농장 프로파일 설정
+# 환경변수(${VAR:-기본값}) 치환을 지원하며 시크릿은 .env에서 주입합니다.
+# =================================================================
+
+farm_id: "${FARM_ID:-hoodyfarm}"
+farm_name: "후디팜 한우 스마트축사"
+
+cameras:
+  - camera_id: "cam_01"
+    name: "축사 1동 메인 카메라"
+    zone: "barn_1"
+    rtsp_url: "${RTSP_STREAM_URL:-}"
+    target_fps: 5.0
+    ring_buffer_sec: 10.0
+    enabled: true
+
+rules:
+  species: "cattle"
+  target_classes:
+    - "cow"
+    - "person"
+    - "dog"
+  confidence_threshold: 0.25
+  event_codes:
+    - "INVERTED"   # 기립불능/뒤집힘
+    - "CALVING"    # 분만 징후
+    - "ESCAPE"     # 축사 이탈
+    - "ESTRUS"     # 발정 승가
+    - "FIGHTING"   # 투쟁
+    - "INTRUSION"  # 외부인 침입
+    - "FIRE"       # 화재/연기
+    - "NORMAL"     # 정상
+  cooldown_sec: 10.0
+  pre_event_sec: 3.0
+  post_event_sec: 3.0
+  vision_prompt: >-
+    Analyze this CCTV camera frame carefully. Detect cattle, animals, or humans in the farm.
+    Identify behavior and anomalies, and classify into event_type:
+    'INVERTED' (기립불능, 뒤집힘, 넘어져서 못 일어남), 'CALVING' (분만 임박, 양수 파수, 출산 징후),
+    'ESCAPE' (울타리 이탈, 축사 탈출), 'ESTRUS' (발정 승가), 'FIGHTING' (투쟁), 'INTRUSION' (외부인 침입),
+    'FIRE' (화재 연기), or 'NORMAL' (정상).
+    Set event_type to one of these uppercase codes.
+    Provide the output strictly matching the required JSON schema with summary in Korean.
+
+storage:
+  media_priority:
+    - "drive"
+    - "tailscale"
+    - "oci"
+  spool_retention_minutes: 15
+  event_retention_days: 7
+  max_total_mb: 2048
+
+notification:
+  fms_webhook_url: "${FMS_WEBHOOK_URL:-}"
+  tailscale_host_url: "${TAILSCALE_HOST_URL:-}"
+  timeout_sec: 4.0

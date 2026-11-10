@@ -1,20 +1,115 @@
 import os
-import time
 import logging
 import httpx
 from typing import Optional, Dict, Any, List
 from src.config import settings
+from src.domain.events.detection_event import DetectionEvent, DetectionTarget
+from src.domain.events.event_envelope import CCTVEventEnvelopeV1, MediaUrls
 
 logger = logging.getLogger(__name__)
 
+
 class FMSWebhookClient:
     """
-    hoodyfarmkr-fms 연동 전용 Webhook Egress 클라이언트
+    FMS 연동 전용 Webhook Egress 어댑터 (EventNotifierPort 구현체).
+    - 정식 계약 메서드: notify(envelope: CCTVEventEnvelopeV1) -> str
+    - 레거시 호환 메서드: send_event_alert(...) -> 내부에서 CCTVEventEnvelopeV1을 조립해 notify() 호출
     """
 
-    def __init__(self, webhook_url: Optional[str] = None, timeout: float = 4.0):
-        self.webhook_url = webhook_url or settings.FMS_WEBHOOK_URL
+    def __init__(
+        self,
+        webhook_url: Optional[str] = None,
+        timeout: float = 4.0,
+        farm_id: Optional[str] = None,
+        tailscale_host_url: Optional[str] = None,
+        media_priority: Optional[List[str]] = None,
+    ):
+        self.webhook_url = webhook_url if webhook_url is not None else settings.FMS_WEBHOOK_URL
         self.timeout = timeout
+        self.farm_id = farm_id
+        self.tailscale_host_url = tailscale_host_url
+        self.media_priority = media_priority or ["drive", "tailscale", "oci"]
+
+    def _resolve_tailscale_urls(
+        self,
+        clip_path: Optional[str],
+        frame_path: Optional[str],
+        tailscale_clip_url: Optional[str] = None,
+        tailscale_image_url: Optional[str] = None,
+    ) -> tuple[Optional[str], Optional[str]]:
+        ts_raw = self.tailscale_host_url if self.tailscale_host_url is not None else settings.TAILSCALE_HOST_URL
+        ts_base = (ts_raw or "").rstrip("/")
+        clip_filename = os.path.basename(clip_path) if clip_path else None
+        frame_filename = os.path.basename(frame_path) if frame_path else None
+
+        if ts_base and not tailscale_clip_url and clip_filename:
+            tailscale_clip_url = f"{ts_base}/api/v1/pipeline/captures/view/clips/{clip_filename}"
+        if ts_base and not tailscale_image_url and frame_filename:
+            tailscale_image_url = f"{ts_base}/api/v1/pipeline/captures/view/events/{frame_filename}"
+        return tailscale_clip_url, tailscale_image_url
+
+    def build_envelope(
+        self,
+        event: DetectionEvent,
+        clip_path: Optional[str] = None,
+        oci_clip_url: Optional[str] = None,
+        oci_frame_url: Optional[str] = None,
+        drive_clip_url: Optional[str] = None,
+        drive_image_url: Optional[str] = None,
+        tailscale_clip_url: Optional[str] = None,
+        tailscale_image_url: Optional[str] = None,
+    ) -> CCTVEventEnvelopeV1:
+        ts_clip, ts_img = self._resolve_tailscale_urls(
+            clip_path=clip_path,
+            frame_path=event.frame_path,
+            tailscale_clip_url=tailscale_clip_url,
+            tailscale_image_url=tailscale_image_url,
+        )
+        clip_filename = os.path.basename(clip_path) if clip_path else None
+        clip_size_bytes = os.path.getsize(clip_path) if clip_path and os.path.exists(clip_path) else 0
+        media = MediaUrls(
+            drive_clip_url=drive_clip_url,
+            drive_image_url=drive_image_url,
+            tailscale_clip_url=ts_clip,
+            tailscale_image_url=ts_img,
+            oci_clip_url=oci_clip_url,
+            oci_frame_url=oci_frame_url,
+        )
+        return CCTVEventEnvelopeV1.from_event(
+            event=event,
+            farm_id=self.farm_id or settings.FARM_ID,
+            clip_path=clip_path,
+            clip_size_bytes=clip_size_bytes,
+            clip_filename=clip_filename,
+            media=media,
+            media_priority=self.media_priority,
+        )
+
+    def notify(self, envelope: CCTVEventEnvelopeV1) -> str:
+        """
+        EventNotifierPort 표준 계약 메서드: CCTVEventEnvelopeV1 JSON 스키마를 FMS Webhook으로 전송.
+        """
+        url = self.webhook_url or settings.FMS_WEBHOOK_URL
+        if not url:
+            logger.info("FMSWebhookClient: FMS_WEBHOOK_URL is not configured. Webhook skipped.")
+            return "skipped (no url)"
+
+        payload = envelope.model_dump()
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                resp = client.post(url, json=payload)
+                if resp.status_code in (200, 201, 202):
+                    logger.info(
+                        f"FMSWebhookClient: Webhook delivered ({resp.status_code}) for event [{envelope.event_id}]"
+                    )
+                    return f"success ({resp.status_code})"
+                logger.warning(
+                    f"FMSWebhookClient: Webhook response {resp.status_code} for event [{envelope.event_id}]"
+                )
+                return f"failed ({resp.status_code})"
+        except Exception as e:
+            logger.warning(f"FMSWebhookClient: Webhook connection error for event [{envelope.event_id}]: {e}")
+            return f"error ({e})"
 
     def send_event_alert(
         self,
@@ -30,68 +125,34 @@ class FMSWebhookClient:
         drive_clip_url: Optional[str] = None,
         drive_image_url: Optional[str] = None,
         tailscale_clip_url: Optional[str] = None,
-        tailscale_image_url: Optional[str] = None
+        tailscale_image_url: Optional[str] = None,
+        camera_id: str = "default_cctv",
     ) -> str:
         """
-        FMS Webhook 서버로 이벤트 알림 및 2-Tier Fallback 미디어 URL(Tier 1: Drive, Tier 2: Tailscale) 전송
+        하위 호환용 메서드: 개별 인자를 받아 CCTVEventEnvelopeV1을 생성한 뒤 notify()를 호출합니다.
         """
-        if not self.webhook_url:
-            logger.info("FMSWebhookClient: FMS_WEBHOOK_URL is not configured. Webhook skipped.")
-            return "skipped (no url)"
-
-        clip_filename = os.path.basename(clip_path) if clip_path else None
-        clip_size_bytes = os.path.getsize(clip_path) if clip_path and os.path.exists(clip_path) else 0
-
-        # Tailscale 기본 URL 폴백 계산 (Tailscale 3500X 직통: http://100.75.197.92:8000)
-        ts_base = (settings.TAILSCALE_HOST_URL or "").rstrip("/")
-        if ts_base and not tailscale_clip_url and clip_filename:
-            tailscale_clip_url = f"{ts_base}/api/v1/pipeline/captures/view/clips/{clip_filename}"
-
-        frame_filename = os.path.basename(frame_path) if frame_path else None
-        if ts_base and not tailscale_image_url and frame_filename:
-            tailscale_image_url = f"{ts_base}/api/v1/pipeline/captures/view/events/{frame_filename}"
-
-        payload = {
-            "event_source": "hoodyfarmkr-cctv",
-            "farm_id": settings.FARM_ID,
-            "event_id": event_id,
-            "event_type": event_type,
-            "detected_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "is_anomaly": is_anomaly,
-            "detections": detections,
-            "clip": {
-                "file_name": clip_filename,
-                "file_path": clip_path,
-                "file_size_bytes": clip_size_bytes,
-                "duration_seconds": 6.0,
-                "oci_url": oci_clip_url,
-                "drive_clip_url": drive_clip_url,
-                "tailscale_clip_url": tailscale_clip_url
-            } if clip_path else None,
-            "frame_path": frame_path,
-            "oci_clip_url": oci_clip_url,
-            "oci_frame_url": oci_frame_url,
-            # 2-Tier Fallback Top-Level Media Fields
-            "drive_clip_url": drive_clip_url,
-            "drive_image_url": drive_image_url,
-            "tailscale_clip_url": tailscale_clip_url,
-            "tailscale_image_url": tailscale_image_url,
-            # FMS 통합 스트리밍/스냅샷 필드 (Tier 1 -> Tier 2 -> OCI)
-            "video_clip_url": drive_clip_url or tailscale_clip_url or oci_clip_url,
-            "snapshot_url": drive_image_url or tailscale_image_url or oci_frame_url,
-            "summary": ai_summary or f"{event_type} detected by CCTV Pipeline",
-            "status": "alert"
-        }
-
-        try:
-            with httpx.Client(timeout=self.timeout) as client:
-                resp = client.post(self.webhook_url, json=payload)
-                if resp.status_code in (200, 201, 202):
-                    logger.info(f"FMSWebhookClient: ✅ Webhook delivered ({resp.status_code}) for event [{event_id}]")
-                    return f"success ({resp.status_code})"
-                else:
-                    logger.warning(f"FMSWebhookClient: ⚠️ Webhook response {resp.status_code} for event [{event_id}]")
-                    return f"failed ({resp.status_code})"
-        except Exception as e:
-            logger.warning(f"FMSWebhookClient: ⚠️ Webhook connection error for event [{event_id}]: {e}")
-            return f"error ({e})"
+        targets = [
+            d if isinstance(d, DetectionTarget) else DetectionTarget(**d)
+            for d in (detections or [])
+        ]
+        event = DetectionEvent(
+            event_id=event_id,
+            camera_id=camera_id,
+            tag=targets[0].label if targets else "event",
+            event_type=event_type,
+            detections=targets,
+            frame_path=frame_path or "",
+            is_anomaly=is_anomaly,
+            ai_summary=ai_summary,
+        )
+        envelope = self.build_envelope(
+            event=event,
+            clip_path=clip_path,
+            oci_clip_url=oci_clip_url,
+            oci_frame_url=oci_frame_url,
+            drive_clip_url=drive_clip_url,
+            drive_image_url=drive_image_url,
+            tailscale_clip_url=tailscale_clip_url,
+            tailscale_image_url=tailscale_image_url,
+        )
+        return self.notify(envelope)

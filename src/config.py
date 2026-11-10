@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     # Farm / Site Identity (multi-farm portability: events are tagged with this id)
     FARM_ID: str = "default"
+    FARM_PROFILE_PATH: Optional[str] = None
 
     # API Security (X-API-Key header). Mandatory when ENVIRONMENT=production.
     API_KEY: Optional[str] = None
