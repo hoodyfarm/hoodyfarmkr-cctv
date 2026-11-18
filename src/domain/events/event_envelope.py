@@ -7,7 +7,7 @@ from src.domain.events.detection_event import DetectionEvent, DetectionTarget
 
 class MediaUrls(BaseModel):
     """
-    다계층(Tier 1 Drive / Tier 2 Tailscale / OCI) 미디어 URL 및 베스트 폴백 해석 모델.
+    다계층(Tier 1 Drive / Tier 2 Tailscale / OCI Signed URL) 미디어 URL 및 베스트 폴백 해석 모델.
     """
     drive_clip_url: Optional[str] = None
     drive_image_url: Optional[str] = None
@@ -15,30 +15,35 @@ class MediaUrls(BaseModel):
     tailscale_image_url: Optional[str] = None
     oci_clip_url: Optional[str] = None
     oci_frame_url: Optional[str] = None
+    media_signed_url: Optional[str] = None
+    frame_signed_url: Optional[str] = None
 
     def resolve_clip_url(self, priority: Optional[List[str]] = None) -> Optional[str]:
-        order = priority or ["drive", "tailscale", "oci"]
+        # priority support: "signed_url", "drive", "tailscale", "oci"
+        order = priority or ["signed_url", "drive", "tailscale", "oci"]
         mapping: Dict[str, Optional[str]] = {
+            "signed_url": self.media_signed_url,
             "drive": self.drive_clip_url,
             "tailscale": self.tailscale_clip_url,
-            "oci": self.oci_clip_url,
+            "oci": self.oci_clip_url or self.media_signed_url,
         }
         for tier in order:
             if mapping.get(tier):
                 return mapping[tier]
-        return self.drive_clip_url or self.tailscale_clip_url or self.oci_clip_url
+        return self.media_signed_url or self.drive_clip_url or self.tailscale_clip_url or self.oci_clip_url
 
     def resolve_snapshot_url(self, priority: Optional[List[str]] = None) -> Optional[str]:
-        order = priority or ["drive", "tailscale", "oci"]
+        order = priority or ["signed_url", "drive", "tailscale", "oci"]
         mapping: Dict[str, Optional[str]] = {
+            "signed_url": self.frame_signed_url,
             "drive": self.drive_image_url,
             "tailscale": self.tailscale_image_url,
-            "oci": self.oci_frame_url,
+            "oci": self.oci_frame_url or self.frame_signed_url,
         }
         for tier in order:
             if mapping.get(tier):
                 return mapping[tier]
-        return self.drive_image_url or self.tailscale_image_url or self.oci_frame_url
+        return self.frame_signed_url or self.drive_image_url or self.tailscale_image_url or self.oci_frame_url
 
 
 class ClipMeta(BaseModel):
@@ -69,6 +74,9 @@ class CCTVEventEnvelopeV1(BaseModel):
     detections: List[DetectionTarget] = Field(default_factory=list)
     clip: Optional[ClipMeta] = None
     frame_path: Optional[str] = None
+    media_signed_url: Optional[str] = None
+    frame_signed_url: Optional[str] = None
+    media_urls: Optional[MediaUrls] = None
     oci_clip_url: Optional[str] = None
     oci_frame_url: Optional[str] = None
     drive_clip_url: Optional[str] = None
@@ -90,8 +98,21 @@ class CCTVEventEnvelopeV1(BaseModel):
         clip_filename: Optional[str] = None,
         media: Optional[MediaUrls] = None,
         media_priority: Optional[List[str]] = None,
+        media_signed_url: Optional[str] = None,
+        frame_signed_url: Optional[str] = None,
     ) -> "CCTVEventEnvelopeV1":
         m = media or MediaUrls()
+        if media_signed_url and not m.media_signed_url:
+            m.media_signed_url = media_signed_url
+        if frame_signed_url and not m.frame_signed_url:
+            m.frame_signed_url = frame_signed_url
+        
+        # If media_signed_url not set but oci_clip_url exists, default it
+        if not m.media_signed_url and m.oci_clip_url:
+            m.media_signed_url = m.oci_clip_url
+        if not m.frame_signed_url and m.oci_frame_url:
+            m.frame_signed_url = m.oci_frame_url
+
         resolved_type = event.event_type or ("ANOMALY" if event.is_anomaly else "NORMAL")
         clip_meta = (
             ClipMeta(
@@ -99,7 +120,7 @@ class CCTVEventEnvelopeV1(BaseModel):
                 file_path=clip_path,
                 file_size_bytes=clip_size_bytes,
                 duration_seconds=round(event.pre_sec + event.post_sec, 2),
-                oci_url=m.oci_clip_url,
+                oci_url=m.oci_clip_url or m.media_signed_url,
                 drive_clip_url=m.drive_clip_url,
                 tailscale_clip_url=m.tailscale_clip_url,
             )
@@ -115,6 +136,9 @@ class CCTVEventEnvelopeV1(BaseModel):
             detections=list(event.detections),
             clip=clip_meta,
             frame_path=event.frame_path,
+            media_signed_url=m.media_signed_url,
+            frame_signed_url=m.frame_signed_url,
+            media_urls=m,
             oci_clip_url=m.oci_clip_url,
             oci_frame_url=m.oci_frame_url,
             drive_clip_url=m.drive_clip_url,

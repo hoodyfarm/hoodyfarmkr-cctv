@@ -7,9 +7,9 @@ farm_id: "${FARM_ID:-hoodyfarm}"
 farm_name: "후디팜 한우 스마트축사"
 
 cameras:
-  - camera_id: "cam_01"
+  - camera_id: "${PRIMARY_CAMERA_ID:-CAM_BARN_01}"
     name: "축사 1동 메인 카메라"
-    zone: "barn_1"
+    zone: "pen_01"
     rtsp_url: "${RTSP_STREAM_URL:-}"
     target_fps: 5.0
     ring_buffer_sec: 10.0

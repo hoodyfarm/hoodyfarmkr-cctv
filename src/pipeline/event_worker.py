@@ -171,6 +171,8 @@ class EventWorker:
             tailscale_image_url=ts_image_url,
             oci_clip_url=oci_clip_url,
             oci_frame_url=oci_frame_url,
+            media_signed_url=oci_clip_url,
+            frame_signed_url=oci_frame_url,
         )
         updated_event = event.model_copy(update={"event_type": resolved_event_type})
         return CCTVEventEnvelopeV1.from_event(
@@ -181,6 +183,8 @@ class EventWorker:
             clip_filename=clip_filename,
             media=media,
             media_priority=self.media_priority,
+            media_signed_url=oci_clip_url,
+            frame_signed_url=oci_frame_url,
         )
 
     def _dispatch_notification(

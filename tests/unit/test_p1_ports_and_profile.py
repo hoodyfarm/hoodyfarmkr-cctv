@@ -40,7 +40,7 @@ def test_farm_profile_loads_hoodyfarm_yaml(monkeypatch):
 
     profile = FarmProfile.from_yaml("config/farms/hoodyfarm.yaml")
     assert profile.farm_id == "hoodyfarm_kr"
-    assert profile.primary_camera.camera_id == "cam_01"
+    assert profile.primary_camera.camera_id in ("CAM_BARN_01", "cam_01")
     assert profile.primary_camera.rtsp_url == "rtsp://cam.local:554/s1"
     assert profile.rules.species == "cattle"
     assert "INVERTED" in profile.rules.event_codes

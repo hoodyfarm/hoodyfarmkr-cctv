@@ -59,3 +59,35 @@ def test_oci_record_metadata():
     service = OCIDataPipelineService()
     success = service.record_metadata_to_oci_db({"frame_id": "01", "status": "ok"})
     assert success is True
+
+@pytest.mark.asyncio
+async def test_oci_upload_and_sign_bytes_and_file():
+    service = OCIDataPipelineService()
+    # 1. bytes upload and sign
+    res = await service.upload_and_sign(
+        b"sample_frame_bytes",
+        object_name="events/cow/test.jpg",
+        expiry_days=7
+    )
+    assert res["status"] in ["simulated", "success"]
+    assert "signed_url" in res
+    assert "media_signed_url" in res
+    assert res["signed_url"].startswith("http")
+    assert res["expiry_days"] == 7
+
+    # 2. file upload and sign
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+        f.write(b"sample_video_bytes")
+        file_path = f.name
+    try:
+        file_res = await service.upload_and_sign(
+            file_path,
+            object_name="clips/cow/test.mp4",
+            expiry_days=14
+        )
+        assert file_res["status"] in ["simulated", "success"]
+        assert "signed_url" in file_res
+        assert file_res["expiry_days"] == 14
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)

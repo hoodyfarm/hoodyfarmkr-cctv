@@ -211,6 +211,8 @@ class OCIDataPipelineService:
                     "etag": response.headers.get("etag") if hasattr(response, "headers") else None,
                     "oci_url": oci_url,
                     "oci_object_url": oci_url,
+                    "signed_url": oci_url,
+                    "media_signed_url": oci_url,
                     "size_bytes": len(content_bytes),
                     "uploaded_at": timestamp,
                     "metadata": metadata or {}
@@ -222,7 +224,7 @@ class OCIDataPipelineService:
         # Simulated response when OCI config file is not yet deployed on local dev machine
         namespace_val = self.namespace or "simulated_namespace"
         region_val = self.region or "ap-osaka-1"
-        simulated_url = f"https://objectstorage.{region_val}.oraclecloud.com/n/{namespace_val}/b/{bucket_name}/o/{object_name}"
+        simulated_url = f"https://objectstorage.{region_val}.oraclecloud.com/p/simulated-par-token/n/{namespace_val}/b/{bucket_name}/o/{object_name}"
         logger.info(f"[Simulated OCI Upload] Object: {object_name} -> Bucket: {bucket_name}")
         return {
             "status": "simulated",
@@ -230,11 +232,52 @@ class OCIDataPipelineService:
             "object_name": object_name,
             "oci_url": simulated_url,
             "oci_object_url": simulated_url,
+            "signed_url": simulated_url,
+            "media_signed_url": simulated_url,
             "size_bytes": len(content_bytes),
             "uploaded_at": timestamp,
             "metadata": metadata or {},
             "note": "OCI API Key not configured locally. Upload simulated successfully."
         }
+
+    async def upload_and_sign(
+        self,
+        file_path_or_bytes: Any,
+        object_name: str,
+        expiry_days: Optional[int] = None,
+        content_type: Optional[str] = None,
+        metadata: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        ObjectStoragePort 규격 비동기 업로드 & Signed URL(PAR) 발급 메서드.
+        file_path_or_bytes: 파일 경로(str) 또는 바이너리 데이터(bytes).
+        """
+        exp_days = expiry_days if expiry_days is not None else getattr(settings, "MEDIA_SIGNED_URL_EXPIRY_DAYS", 7)
+        if isinstance(file_path_or_bytes, str):
+            res = self.upload_file_to_oci(
+                file_path=file_path_or_bytes,
+                object_name=object_name,
+                metadata=metadata,
+            )
+        elif isinstance(file_path_or_bytes, (bytes, bytearray)):
+            is_video = object_name.lower().endswith((".mp4", ".avi", ".mkv", ".mov"))
+            target_bucket = self.raw_bucket if is_video else self.refined_bucket
+            c_type = content_type or ("video/mp4" if is_video else "image/jpeg")
+            res = self._put_object(
+                bucket_name=target_bucket,
+                object_name=object_name,
+                content_bytes=bytes(file_path_or_bytes),
+                content_type=c_type,
+                metadata=metadata,
+            )
+        else:
+            raise ValueError(f"Unsupported file_path_or_bytes type: {type(file_path_or_bytes)}")
+
+        signed_url = res.get("oci_url") or res.get("oci_object_url")
+        res["signed_url"] = signed_url
+        res["media_signed_url"] = signed_url
+        res["expiry_days"] = exp_days
+        return res
 
     def record_metadata_to_oci_db(self, metadata: Dict[str, Any]) -> bool:
         """

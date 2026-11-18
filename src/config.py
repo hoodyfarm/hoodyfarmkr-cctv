@@ -54,6 +54,13 @@ class Settings(BaseSettings):
     OCI_BUCKET_RAW_VIDEOS: str = "cctv-raw-videos"
     OCI_BUCKET_REFINED_FRAMES: str = "cctv-AI-VISION"
     OCI_PAR_EXPIRY_DAYS: int = 7
+    MEDIA_SIGNED_URL_EXPIRY_DAYS: int = 7
+
+    # Storage & Disk Guard Policy
+    SPOOL_RETENTION_MINUTES: int = 30
+    EVENT_RETENTION_DAYS: int = 7
+    STORAGE_MAX_TOTAL_MB: int = 2048
+    DISK_MIN_FREE_PERCENT: float = 10.0
 
     # Gemini AI API Configuration
     GEMINI_API_KEY: Optional[str] = None
@@ -61,6 +68,12 @@ class Settings(BaseSettings):
 
     # 2-Tier Fallback Media Streaming (Tier 1: Google Drive, Tier 2: Tailscale host). Unset = tier disabled.
     TAILSCALE_HOST_URL: Optional[str] = None
+
+    # Tailscale Network Hosts (사설 가상망 노드 관리)
+    TAILSCALE_HOST_3500X: str = "100.75.197.92"    # 축사 현장 AI Vision 에지 노드
+    TAILSCALE_HOST_5700X3D: str = "100.75.141.52"  # 본 개발 서버 (메인 워크스테이션)
+    TAILSCALE_HOST_DEV: Optional[str] = None       # 개발 서버
+    TAILSCALE_HOST_PROD: Optional[str] = None      # 운영 서버
 
     # External FMS System Notification Webhook. Unset = webhook disabled.
     FMS_WEBHOOK_URL: Optional[str] = None

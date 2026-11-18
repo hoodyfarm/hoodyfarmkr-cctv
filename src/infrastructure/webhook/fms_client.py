@@ -39,6 +39,8 @@ class FMSWebhookClient:
     ) -> tuple[Optional[str], Optional[str]]:
         ts_raw = self.tailscale_host_url if self.tailscale_host_url is not None else settings.TAILSCALE_HOST_URL
         ts_base = (ts_raw or "").rstrip("/")
+        if ts_base and not ts_base.startswith("http://") and not ts_base.startswith("https://"):
+            ts_base = f"http://{ts_base}:8000" if ":" not in ts_base else f"http://{ts_base}"
         clip_filename = os.path.basename(clip_path) if clip_path else None
         frame_filename = os.path.basename(frame_path) if frame_path else None
 
@@ -58,6 +60,8 @@ class FMSWebhookClient:
         drive_image_url: Optional[str] = None,
         tailscale_clip_url: Optional[str] = None,
         tailscale_image_url: Optional[str] = None,
+        media_signed_url: Optional[str] = None,
+        frame_signed_url: Optional[str] = None,
     ) -> CCTVEventEnvelopeV1:
         ts_clip, ts_img = self._resolve_tailscale_urls(
             clip_path=clip_path,
@@ -67,6 +71,8 @@ class FMSWebhookClient:
         )
         clip_filename = os.path.basename(clip_path) if clip_path else None
         clip_size_bytes = os.path.getsize(clip_path) if clip_path and os.path.exists(clip_path) else 0
+        resolved_media_signed = media_signed_url or oci_clip_url
+        resolved_frame_signed = frame_signed_url or oci_frame_url
         media = MediaUrls(
             drive_clip_url=drive_clip_url,
             drive_image_url=drive_image_url,
@@ -74,6 +80,8 @@ class FMSWebhookClient:
             tailscale_image_url=ts_img,
             oci_clip_url=oci_clip_url,
             oci_frame_url=oci_frame_url,
+            media_signed_url=resolved_media_signed,
+            frame_signed_url=resolved_frame_signed,
         )
         return CCTVEventEnvelopeV1.from_event(
             event=event,
@@ -83,6 +91,8 @@ class FMSWebhookClient:
             clip_filename=clip_filename,
             media=media,
             media_priority=self.media_priority,
+            media_signed_url=resolved_media_signed,
+            frame_signed_url=resolved_frame_signed,
         )
 
     def notify(self, envelope: CCTVEventEnvelopeV1) -> str:

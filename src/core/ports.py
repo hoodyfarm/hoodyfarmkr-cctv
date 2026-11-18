@@ -39,7 +39,7 @@ class ClipEncoderPort(Protocol):
 
 @runtime_checkable
 class ObjectStoragePort(Protocol):
-    """클라우드 오브젝트 스토리지(OCI 등) 업로드 포트"""
+    """클라우드 오브젝트 스토리지(OCI 등) 업로드 및 Signed URL(PAR) 발급 포트"""
 
     def upload_file_to_oci(
         self,
@@ -47,6 +47,17 @@ class ObjectStoragePort(Protocol):
         object_name: Optional[str] = None,
         metadata: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]: ...
+
+    async def upload_and_sign(
+        self,
+        file_path_or_bytes: Any,
+        object_name: str,
+        expiry_days: int = 7,
+        content_type: Optional[str] = None,
+        metadata: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """업로드 후 signed_url(또는 PAR URL)을 포함한 메타데이터 반환"""
+        ...
 
 
 @runtime_checkable
