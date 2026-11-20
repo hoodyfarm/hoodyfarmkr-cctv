@@ -258,6 +258,7 @@ class EventWorker:
                     frames=frames,
                     tag=event.tag,
                     fps=clip_fps,
+                    camera_id=event.camera_id,
                 )
                 if clip_path:
                     self.total_clips_created += 1

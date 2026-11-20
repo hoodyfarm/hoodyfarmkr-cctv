@@ -46,6 +46,7 @@ htmlcov/
 
 # Logs & temp files
 *.log
+*.bak
 temp/
 captures/
 dataset_exports/

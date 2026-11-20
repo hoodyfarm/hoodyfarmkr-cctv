@@ -6,6 +6,8 @@ from typing import Dict, Any, List
 from src.config import settings
 from src.services.onvif_service import ONVIFCameraService
 from src.services.stream_service import VideoStreamHandler
+from src.domain.models.sync_payload import FarmSyncPayload
+from src.services.config_sync_service import config_sync_service
 
 router = APIRouter(prefix="/api/v1/camera", tags=["SmartLife ONVIF CCTV"])
 
@@ -73,3 +75,16 @@ def get_live_stream():
         stream_handler.generate_mjpeg_frames(),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
+
+@router.post("/sync")
+def sync_cameras_alias(payload: FarmSyncPayload) -> Dict[str, Any]:
+    """
+    POST /api/v1/system/sync-cameras의 편의용 alias 엔드포인트.
+    """
+    try:
+        return config_sync_service.sync_from_payload(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"동기화 실패: {str(e)}")
+

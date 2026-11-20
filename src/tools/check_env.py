@@ -83,18 +83,23 @@ def check_env_configuration():
 
 def check_cctv_network():
     print("\n--- 7. CCTV 네트워크 연결 테스트 ---")
-    if not settings.ONVIF_HOST:
-        print("ℹ️ ONVIF_HOST가 설정되지 않았습니다.")
-        return
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(3.0)
-    result = sock.connect_ex((settings.ONVIF_HOST, settings.ONVIF_PORT))
-    sock.close()
+    cams = [
+        ("카메라 1 (CAM_BARN_01)", settings.ONVIF_HOST, settings.ONVIF_PORT),
+    ]
+    if settings.ONVIF_HOST_CAM02:
+        cams.append(("카메라 2 (CAM_BARN_02)", settings.ONVIF_HOST_CAM02, settings.ONVIF_PORT_CAM02))
 
-    if result == 0:
-        print(f"✅ ONVIF 포트 ({settings.ONVIF_HOST}:{settings.ONVIF_PORT}) 통신 성공!")
-    else:
-        print(f"ℹ️ ONVIF 포트 ({settings.ONVIF_HOST}:{settings.ONVIF_PORT}) 연결 실패 또는 대기 중")
+    for label, host, port in cams:
+        if not host:
+            continue
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2.0)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        if result == 0:
+            print(f"✅ {label} ONVIF 포트 ({host}:{port}) 통신 성공!")
+        else:
+            print(f"ℹ️ {label} ONVIF 포트 ({host}:{port}) 연결 실패 또는 대기 중")
 
 def check_fms_network():
     print("\n--- 8. FMS 웹훅 엔드포인트 연결 테스트 ---")

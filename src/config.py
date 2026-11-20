@@ -1,6 +1,9 @@
 from typing import List, Optional
+from dotenv import load_dotenv
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+load_dotenv()
 
 
 class Settings(BaseSettings):
@@ -28,6 +31,13 @@ class Settings(BaseSettings):
     ONVIF_USER: str = ""
     ONVIF_PASSWORD: str = ""
     RTSP_STREAM_URL: str = ""
+
+    # Second SmartLife / ONVIF CCTV Configuration (CAM_BARN_02)
+    ONVIF_HOST_CAM02: str = ""
+    ONVIF_PORT_CAM02: int = 8899
+    ONVIF_USER_CAM02: str = ""
+    ONVIF_PASSWORD_CAM02: str = ""
+    RTSP_STREAM_URL_CAM02: str = ""
 
     # Sampling & Capture Configuration
     FRAME_SAMPLING_INTERVAL_SEC: int = 5  # Capture 1 keyframe every N seconds

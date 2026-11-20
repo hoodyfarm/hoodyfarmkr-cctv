@@ -33,7 +33,11 @@ class ClipEncoderPort(Protocol):
     """프레임 시퀀스를 MP4 비디오 클립으로 인코딩하는 포트"""
 
     def encode_clip(
-        self, frames: List[np.ndarray], tag: str = "event", fps: float = 5.0
+        self,
+        frames: List[np.ndarray],
+        tag: str = "event",
+        fps: float = 5.0,
+        camera_id: Optional[str] = None,
     ) -> Optional[str]: ...
 
 

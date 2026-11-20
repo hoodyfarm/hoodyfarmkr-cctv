@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import logging
 import cv2
@@ -23,18 +24,21 @@ class ClipService:
         self,
         frames: List[np.ndarray],
         tag: str = "event",
-        fps: float = 5.0
+        fps: float = 5.0,
+        camera_id: Optional[str] = None,
     ) -> Optional[str]:
         """
         프레임 리스트를 .mp4 영상 파일로 인코딩하여 저장.
-        저장 경로 반환 (실패 시 None)
+        카메라 ID가 지정되면 파일명에 카메라 식별자가 자동으로 접두사로 반영됩니다.
         """
         if not frames:
             logger.warning("ClipService: No frames provided to generate MP4 clip.")
             return None
 
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f"clip_{tag}_{timestamp}_{int(time.time() * 1000) % 1000}.mp4"
+        safe_cam = re.sub(r"[^\w\-]", "_", str(camera_id)).strip("_") if camera_id else ""
+        prefix = f"clip_{safe_cam}_" if safe_cam else "clip_"
+        filename = f"{prefix}{tag}_{timestamp}_{int(time.time() * 1000) % 1000}.mp4"
         filepath = os.path.join(self.output_dir, filename)
 
         height, width = frames[0].shape[:2]

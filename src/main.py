@@ -9,6 +9,7 @@ from fastapi.responses import PlainTextResponse
 from src.config import settings
 from src.api.camera_routes import router as camera_router
 from src.api.pipeline_routes import router as pipeline_router, media_router
+from src.api.system_routes import router as system_router
 from src.api.security import require_api_key
 from src.api.gemini_routes import router as gemini_router
 from src.core.observability import (
@@ -73,6 +74,7 @@ _auth = [Depends(require_api_key)]
 app.include_router(camera_router, dependencies=_auth)
 app.include_router(pipeline_router, dependencies=_auth)
 app.include_router(gemini_router, dependencies=_auth)
+app.include_router(system_router, dependencies=_auth)
 app.include_router(media_router)
 
 

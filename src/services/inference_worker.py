@@ -1,6 +1,7 @@
 import time
 import threading
 import os
+import re
 import logging
 import cv2
 import numpy as np
@@ -36,6 +37,7 @@ class InferenceWorker:
         event_worker: Optional[EventPublisherPort] = None,
         vision_service: Optional[VisionAnalyzerPort] = None,
         camera_id: str = "default_cctv",
+        camera_name: Optional[str] = None,
         target_classes: Optional[Iterable[str]] = None,
         confidence_threshold: float = 0.25,
         vision_prompt: Optional[str] = None,
@@ -48,6 +50,7 @@ class InferenceWorker:
         self.enable_gemini = enable_gemini
         self.event_worker = event_worker
         self.camera_id = camera_id
+        self.camera_name = camera_name or camera_id
         self.confidence_threshold = confidence_threshold
         self.vision_prompt = vision_prompt
 
@@ -119,20 +122,69 @@ class InferenceWorker:
             self._thread.join(timeout=2.0)
         logger.info("InferenceWorker stopped safely.")
 
+    def _get_camera_file_tag(self) -> str:
+        """
+        카메라 ID 또는 이름이 바뀌면 파일명도 즉각 동기화되도록 안전한 파일명 태그 생성.
+        예: 'CAM_BARN_01' -> 'CAM_BARN_01', '축사 1번' -> '축사_1번'
+        """
+        raw = self.camera_id or "cctv"
+        safe = re.sub(r"[^\w\-]", "_", str(raw)).strip("_")
+        return safe or "cctv"
+
+    def _apply_camera_osd(self, frame: np.ndarray) -> np.ndarray:
+        """
+        프레임 상단에 카메라 식별 라벨 및 촬영 일시를 OSD 자막으로 각인.
+        카메라 이름/ID가 변경되면 즉시 변경된 이름이 프레임에 출력됩니다.
+        """
+        if frame is None or frame.size == 0:
+            return frame
+        try:
+            annotated = frame.copy()
+            h, w = annotated.shape[:2]
+            banner_h = min(36, max(24, int(h * 0.06)))
+            overlay = annotated.copy()
+            cv2.rectangle(overlay, (0, 0), (w, banner_h), (0, 0, 0), -1)
+            cv2.addWeighted(overlay, 0.55, annotated, 0.45, 0, annotated)
+
+            now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+            label = f"[{self.camera_id}] {self.camera_name}" if (self.camera_name and self.camera_name != self.camera_id) else f"[{self.camera_id}]"
+            full_text = f"{label} | {now_str}"
+
+            font_scale = max(0.4, min(0.65, w / 1000.0))
+            thickness = 1 if w < 600 else 2
+            y_pos = int(banner_h * 0.7)
+            cv2.putText(
+                annotated,
+                full_text,
+                (10, y_pos),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale,
+                (0, 255, 255),
+                thickness,
+                cv2.LINE_AA,
+            )
+            return annotated
+        except Exception as e:
+            logger.debug(f"OSD watermark error: {e}")
+            return frame
+
     def _save_spool_frame(self, frame: np.ndarray) -> str:
-        """1차 임시 spool 폴더에 프레임 저장"""
+        """1차 임시 spool 폴더에 프레임 저장 (카메라 식별 태그 포함)"""
+        cam_tag = self._get_camera_file_tag()
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f"spool_{timestamp}_{int(time.time()*1000)%1000}.jpg"
+        filename = f"spool_{cam_tag}_{timestamp}_{int(time.time()*1000)%1000}.jpg"
         filepath = os.path.join(self.spool_dir, filename)
         cv2.imwrite(filepath, frame)
         return filepath
 
     def _promote_to_event(self, frame: np.ndarray, tag: str = "cow_detected") -> str:
-        """관심 객체 포착 시 events 폴더로 정식 영속 이관"""
+        """관심 객체 포착 시 events 폴더로 정식 영속 이관 (카메라 식별 태그 + OSD 자막 각인)"""
+        cam_tag = self._get_camera_file_tag()
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f"event_{tag}_{timestamp}_{int(time.time()*1000)%1000}.jpg"
+        filename = f"event_{cam_tag}_{tag}_{timestamp}_{int(time.time()*1000)%1000}.jpg"
         filepath = os.path.join(self.events_dir, filename)
-        cv2.imwrite(filepath, frame)
+        annotated_frame = self._apply_camera_osd(frame)
+        cv2.imwrite(filepath, annotated_frame)
         self.event_saved_count += 1
         logger.info(f"InferenceWorker: Promoted to event file -> {filepath}")
         return filepath
@@ -165,6 +217,7 @@ class InferenceWorker:
                     frames=frames,
                     tag=tag,
                     fps=clip_fps,
+                    camera_id=self.camera_id,
                 )
                 if clip_path:
                     self.clips_generated_count += 1

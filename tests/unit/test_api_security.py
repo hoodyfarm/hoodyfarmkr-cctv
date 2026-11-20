@@ -63,7 +63,11 @@ def test_production_requires_api_key_and_db_credentials():
 
 
 @pytest.mark.unit
-def test_no_farm_specific_defaults():
+def test_no_farm_specific_defaults(monkeypatch):
+    monkeypatch.delenv("TAILSCALE_HOST_URL", raising=False)
+    monkeypatch.delenv("FMS_WEBHOOK_URL", raising=False)
+    monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)
+    monkeypatch.delenv("CORS_ALLOW_ORIGINS", raising=False)
     s = Settings(_env_file=None)
     assert s.TAILSCALE_HOST_URL is None
     assert s.FMS_WEBHOOK_URL is None

@@ -145,6 +145,7 @@ class WorkerManager:
             event_worker=self.event_worker,
             vision_service=self.vision_service,
             camera_id=cam.camera_id,
+            camera_name=cam.name,
             target_classes=rules.target_classes,
             confidence_threshold=rules.confidence_threshold,
             vision_prompt=vision_prompt,
@@ -182,6 +183,110 @@ class WorkerManager:
         for ing in self.ingestion_workers.values():
             ing.stop()
         logger.info("WorkerManager: All workers stopped.")
+
+    def reload_from_profile(self, new_profile: FarmProfile) -> Dict[str, Any]:
+        """
+        변경된 FarmProfile(카메라 설정 등)을 적용하여 워커들을 무중단 재구성(Hot-Reload)합니다.
+        기존에 연결된 워커들을 안전하게 정지한 뒤 새 설정에 맞춰 재생성 및 시작합니다.
+        """
+        logger.info(
+            f"WorkerManager: Hot-reloading pipeline for farm [{new_profile.farm_id}] "
+            f"({len(new_profile.cameras)} cameras configured)..."
+        )
+        # 1. 기존 Ingestion / Inference 워커 안전 정지
+        for cid, inf in list(self.inference_workers.items()):
+            try:
+                inf.stop()
+            except Exception as e:
+                logger.warning(f"Error stopping inference worker {cid}: {e}")
+        for cid, ing in list(self.ingestion_workers.items()):
+            try:
+                ing.stop()
+            except Exception as e:
+                logger.warning(f"Error stopping ingestion worker {cid}: {e}")
+
+        # 2. 프로파일 및 설정 업데이트
+        self.profile = new_profile
+        cam = self.profile.primary_camera
+        rules = self.profile.rules
+        notif = self.profile.notification
+        storage = self.profile.storage
+        enable_gemini = bool(settings.GEMINI_API_KEY and "your_" not in settings.GEMINI_API_KEY)
+        vision_prompt = rules.build_vision_prompt()
+
+        if hasattr(self.fms_client, "webhook_url"):
+            self.fms_client.webhook_url = notif.fms_webhook_url
+        if hasattr(self.fms_client, "tailscale_host_url"):
+            self.fms_client.tailscale_host_url = notif.tailscale_host_url
+        if hasattr(self.fms_client, "media_priority"):
+            self.fms_client.media_priority = storage.media_priority
+
+        self.event_worker.tailscale_host_url = notif.tailscale_host_url
+        self.event_worker.media_priority = storage.media_priority
+
+        # 3. 워커 레지스트리 재구성
+        self.ingestion_workers.clear()
+        self.inference_workers.clear()
+        self.event_worker.frame_sources.clear()
+
+        # Primary camera
+        primary_ingestion = IngestionWorker(
+            stream_url=cam.rtsp_url,
+            target_fps=cam.target_fps,
+            max_queue_size=1,
+            ring_buffer_sec=cam.ring_buffer_sec,
+        )
+        self.ingestion_workers[cam.camera_id] = primary_ingestion
+        self.event_worker.register_frame_source(cam.camera_id, primary_ingestion)
+        self.event_worker.ingestion_worker = primary_ingestion
+
+        primary_inference = self._build_inference_worker(
+            cam=cam,
+            ing_worker=primary_ingestion,
+            enable_gemini=enable_gemini,
+            vision_prompt=vision_prompt,
+        )
+        self.inference_workers[cam.camera_id] = primary_inference
+
+        # Extra cameras
+        for extra_cam in self.profile.cameras:
+            if not extra_cam.enabled or extra_cam.camera_id in self.ingestion_workers:
+                continue
+            extra_ing = IngestionWorker(
+                stream_url=extra_cam.rtsp_url,
+                target_fps=extra_cam.target_fps,
+                max_queue_size=1,
+                ring_buffer_sec=extra_cam.ring_buffer_sec,
+            )
+            self.ingestion_workers[extra_cam.camera_id] = extra_ing
+            self.event_worker.register_frame_source(extra_cam.camera_id, extra_ing)
+            self.inference_workers[extra_cam.camera_id] = self._build_inference_worker(
+                cam=extra_cam,
+                ing_worker=extra_ing,
+                enable_gemini=enable_gemini,
+                vision_prompt=vision_prompt,
+            )
+
+        self.ingestion_worker = primary_ingestion
+        self.inference_worker = primary_inference
+
+        # 4. 새 워커 가동
+        for ing in self.ingestion_workers.values():
+            ing.start()
+        if not self.event_worker._running:
+            self.event_worker.start()
+        for inf in self.inference_workers.values():
+            inf.start()
+
+        logger.info(
+            f"WorkerManager: Hot-reload completed successfully. "
+            f"Active cameras: {list(self.ingestion_workers.keys())}"
+        )
+        return {
+            "status": "reloaded",
+            "camera_count": len(self.ingestion_workers),
+            "camera_ids": list(self.ingestion_workers.keys()),
+        }
 
     def trigger_once(self, camera_id: Optional[str] = None):
         """수동 트리거: 지정된 camera_id(생략 시 대표 카메라)의 최신 프레임 1장을 처리"""
