@@ -16,7 +16,7 @@ from src.domain.models.farm_profile import (
 from src.infrastructure.webhook.outbox import WebhookOutbox
 from src.main import app
 from src.pipeline.event_worker import EventWorker
-from src.services.worker_manager import WorkerManager
+from src.services.worker_manager import WorkerManager, worker_manager
 
 
 def _make_sample_envelope(event_id: str = "evt_outbox_01", farm_id: str = "farm_a") -> CCTVEventEnvelopeV1:
@@ -155,6 +155,11 @@ def test_observability_correlation_id_and_prometheus_metrics(monkeypatch):
     assert "cctv_camera_connected" in res_m.text
 
     # 3. /api/v1/pipeline/outbox and /outbox/retry endpoints
+    monkeypatch.setattr(
+        worker_manager.event_worker,
+        "flush_outbox_once",
+        lambda: {"processed": 0, "delivered": 0, "retried": 0, "dlq": 0},
+    )
     res_o = client.get("/api/v1/pipeline/outbox", headers={"X-API-Key": "obs-secret"})
     assert res_o.status_code == 200
     assert "pending" in res_o.json()["outbox"]

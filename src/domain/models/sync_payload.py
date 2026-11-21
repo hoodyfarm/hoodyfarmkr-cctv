@@ -11,17 +11,18 @@ class CameraSyncItem(BaseModel):
     onvif_port: int = Field(8899, description="ONVIF 포트")
     username: str = Field("admin", description="ONVIF/RTSP 계정")
     password: str = Field("", description="ONVIF/RTSP 비밀번호")
+    stream_type: int = Field(1, description="스트림 모드: 1(AI 서브스트림 640p, 권장), 0(고화질 메인스트림 2K/4K)")
     rtsp_url: Optional[str] = Field(None, description="명시적 RTSP 주소 (생략 시 local_ip와 계정으로 자동 생성)")
     fps: float = Field(5.0, description="목표 FPS")
     ring_buffer_sec: float = Field(10.0, description="이벤트 전후 캡처 링 버퍼 초")
     enabled: bool = Field(True, description="활성화 여부")
 
     def build_rtsp_url(self) -> str:
-        """rtsp_url이 비어있으면 로컬 IP와 계정 정보로 표준 RTSP URL을 자동 조합합니다."""
+        """rtsp_url이 비어있으면 로컬 IP와 계정 정보, 스트림 모드로 표준 RTSP URL을 자동 조합합니다."""
         if self.rtsp_url and self.rtsp_url.strip():
             return self.rtsp_url.strip()
         user_part = f"{self.username}:{self.password}@" if self.username else ""
-        return f"rtsp://{user_part}{self.local_ip}:554/streamtype=1"
+        return f"rtsp://{user_part}{self.local_ip}:554/streamtype={self.stream_type}"
 
 
 class FarmSyncPayload(BaseModel):
