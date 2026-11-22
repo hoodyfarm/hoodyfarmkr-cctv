@@ -10,12 +10,14 @@
 | 순번 | 작업 코드 | 작업명 | 상태 | 주요 대상 모듈 |
 | :---: | :---: | :--- | :---: | :--- |
 | **0** | `TASK-CLIP-10S` | **10초 클립 생성 버퍼 설정 및 단위 테스트 검증** | **[완결]** | `hoodyfarm.yaml`, `config.py` |
-| **1** | `TASK-E2E-PIPE` | **3500X ➔ FMS 10초 클립 웹훅 송수신 E2E 실측 검증** | **[진행중]** | `event_worker.py`, `fms_client.py` |
-| **2** | `TASK-LOCAL-FILTER` | **3500X 1차 필터 고도화 (소 모션 델타 + 기립불능 Aspect Ratio)** | **[예정]** | `inference_worker.py` |
-| **3** | `TASK-WATER-ROI` | **음수조(물통) ROI 체류 시간 추적 및 음수 거부 감지기** | **[예정]** | `src/services/behavior/` |
-| **4** | `TASK-NIGHT-SLEEP` | **야간 수면 및 기립/횡와(진통/불안정) 시계열 로거** | **[예정]** | `src/services/behavior/` |
-| **5** | `TASK-GEMINI-PLUGIN` | **Gemini 2.5 Flash 정밀 행동/외형 판독 프롬프트 연동** | **[예정]** | `gemini_service.py` |
-| **6** | `TASK-AUDIO-COUGH` | **CCTV RTSP 오디오 기반 호흡기 기침 음향 감지기** | **[예정]** | `src/services/audio/` |
+| **1** | `TASK-CATTLE-BEHAVIOR` | **소 이상행동(산통/기립불능) 시계열 상태 추적기 및 ByteTrack 튜닝** | **[완결]** | `cattle_behavior_tracker.py`, `cattle_bytetrack.yaml` |
+| **2** | `TASK-CCTV-NET-RESERVE` | **축사 CCTV 10대 네트워크 스캔 및 공유기 DHCP 주소 예약 표준화** | **[완결]** | `hoodyfarm.yaml`, `.env`, `CCTV_NETWORK_RESERVATION.md` |
+| **3** | `TASK-E2E-PIPE` | **3500X ➔ FMS 10초 클립 웹훅 송수신 E2E 실측 검증** | **[진행중]** | `event_worker.py`, `fms_client.py` |
+| **4** | `TASK-LOCAL-FILTER` | **3500X 1차 필터 고도화 (소 모션 델타 + 기립불능 Aspect Ratio)** | **[예정]** | `inference_worker.py` |
+| **5** | `TASK-WATER-ROI` | **음수조(물통) ROI 체류 시간 추적 및 음수 거부 감지기** | **[예정]** | `src/services/behavior/` |
+| **6** | `TASK-NIGHT-SLEEP` | **야간 수면 및 기립/횡와(진통/불안정) 시계열 로거** | **[예정]** | `src/services/behavior/` |
+| **7** | `TASK-GEMINI-PLUGIN` | **Gemini 2.5 Flash 정밀 행동/외형 판독 프롬프트 연동** | **[예정]** | `gemini_service.py` |
+| **8** | `TASK-AUDIO-COUGH` | **CCTV RTSP 오디오 기반 호흡기 기침 음향 감지기** | **[예정]** | `src/services/audio/` |
 
 ---
 
@@ -30,6 +32,28 @@
   * `config/farms/hoodyfarm.yaml`: `ring_buffer_sec: 20.0`, `pre_event_sec: 5.0`, `post_event_sec: 5.0`
   * `src/config.py`: `CLIP_PRE_EVENT_SEC: 5.0`, `CLIP_POST_EVENT_SEC: 5.0`
   * 단위 테스트 `tests/unit/test_p1_ports_and_profile.py` 100% 통과 확인.
+
+---
+
+### [완결] TASK-CATTLE-BEHAVIOR: 소 이상행동(산통/기립불능) 시계열 상태 추적기 및 ByteTrack 튜닝
+* **상태**: **[완결]** (2026-11-22 완료)
+* **목표**: 저해상도(640x360) 서브스트림 환경에서 단순 휴식 소, 산통(장꼬임/고창증) 소, 기립불능(측와) 소를 시계열 상태 머신으로 판별
+* **반영 내역**:
+  * `config/cattle_bytetrack.yaml`: 야간 IR 및 가림 대응 파라미터 (track_buffer 180, track_high_thresh 0.45 등)
+  * `src/services/behavior/cattle_behavior_tracker.py`: 다수결 디바운싱(5프레임), 종횡비(>2.3) 보정, 15초 측와 기립불능(`CATTLE_INVERTED`), 15분 내 4회 이상 기립↔횡와 반복 산통(`COLIC_SUSPECTED`) 판정기
+  * 단위 테스트 `tests/unit/test_cattle_behavior_tracker.py`: 5개 시나리오 100% 통과 (전체 회귀 84건 통과)
+  * 기술 문서: `md/CATTLE_BEHAVIOR_TRACKER.md` 생성 완료
+
+---
+
+### [완결] TASK-CCTV-NET-RESERVE: 축사 CCTV 10대 네트워크 스캔 및 공유기 DHCP 주소 예약 표준화
+* **상태**: **[완결]** (2026-11-22 완료)
+* **목표**: TP-Link Archer AX73 기반 CCTV 10대의 MAC 주소 스캔 및 `192.168.0.51 ~ 60` 대역 고정 예약 표준화
+* **반영 내역**:
+  * 축사 LAN 서브넷 스캔으로 10대 CCTV RTSP 포트 및 MAC 주소 전수 추출
+  * `config/farms/hoodyfarm.yaml`: `192.168.0.51` (CAM01), `192.168.0.52` (CAM02) 기본값 갱신
+  * `.env`, `.env.example`: 주소 예약 고정 IP 및 MAC 주소 참조 정보 동기화
+  * 기술 문서: `md/CCTV_NETWORK_RESERVATION.md` 작성 완료
 
 ---
 

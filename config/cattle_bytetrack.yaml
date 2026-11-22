@@ -1,0 +1,8 @@
+# cattle_bytetrack.yaml
+tracker_type: bytetrack
+track_high_thresh: 0.45    # 1차 매칭 신뢰도 (야간 IR 화질 고려해 0.5 -> 0.45 하향)
+track_low_thresh: 0.15     # 일부 가려진 소도 놓치지 않고 2차 매칭으로 추적 유지
+new_track_thresh: 0.55     # 신규 ID 발급 기준을 높여 오탐으로 인한 가짜 ID 생성 억제
+track_buffer: 180          # 핵심: 2.5fps 기준 약 72초 동안 다른 소에 가려져도 기존 ID 영속 유지
+match_thresh: 0.85         # 소의 이동 속도가 느리므로 IoU 매칭 허용 범위를 넓게 설정
+fuse_score: True
