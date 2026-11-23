@@ -12,12 +12,13 @@
 | **0** | `TASK-CLIP-10S` | **10초 클립 생성 버퍼 설정 및 단위 테스트 검증** | **[완결]** | `hoodyfarm.yaml`, `config.py` |
 | **1** | `TASK-CATTLE-BEHAVIOR` | **소 이상행동(산통/기립불능) 시계열 상태 추적기 및 ByteTrack 튜닝** | **[완결]** | `cattle_behavior_tracker.py`, `cattle_bytetrack.yaml` |
 | **2** | `TASK-CCTV-NET-RESERVE` | **축사 CCTV 10대 네트워크 스캔 및 공유기 DHCP 주소 예약 표준화** | **[완결]** | `hoodyfarm.yaml`, `.env`, `CCTV_NETWORK_RESERVATION.md` |
-| **3** | `TASK-E2E-PIPE` | **3500X ➔ FMS 10초 클립 웹훅 송수신 E2E 실측 검증** | **[진행중]** | `event_worker.py`, `fms_client.py` |
-| **4** | `TASK-LOCAL-FILTER` | **3500X 1차 필터 고도화 (소 모션 델타 + 기립불능 Aspect Ratio)** | **[예정]** | `inference_worker.py` |
-| **5** | `TASK-WATER-ROI` | **음수조(물통) ROI 체류 시간 추적 및 음수 거부 감지기** | **[예정]** | `src/services/behavior/` |
-| **6** | `TASK-NIGHT-SLEEP` | **야간 수면 및 기립/횡와(진통/불안정) 시계열 로거** | **[예정]** | `src/services/behavior/` |
-| **7** | `TASK-GEMINI-PLUGIN` | **Gemini 2.5 Flash 정밀 행동/외형 판독 프롬프트 연동** | **[예정]** | `gemini_service.py` |
-| **8** | `TASK-AUDIO-COUGH` | **CCTV RTSP 오디오 기반 호흡기 기침 음향 감지기** | **[예정]** | `src/services/audio/` |
+| **3** | `TASK-LOCAL-FILTER` | **3500X 1차 필터 고도화: 장폐색(산통)·기립불능 실시간 엣지 파이프라인 결합** | **[완결]** | `inference_worker.py` |
+| **4** | `TASK-DATASET-PIPELINE` | **축사 10대 CCTV 프레임 자동 수집기 및 반자동 의사 라벨러·학습 파이프라인** | **[완결]** | `dataset_collector.py`, `auto_labeler.py`, `train_yolo.py` |
+| **5** | `TASK-E2E-PIPE` | **3500X ➔ FMS 10초 클립 웹훅 송수신 E2E 실측 검증** | **[진행중]** | `event_worker.py`, `fms_client.py` |
+| **6** | `TASK-WATER-ROI` | **음수조(물통) ROI 체류 시간 추적 및 음수 거부 감지기** | **[예정]** | `src/services/behavior/` |
+| **7** | `TASK-NIGHT-SLEEP` | **야간 수면 및 기립/횡와(진통/불안정) 시계열 로거** | **[예정]** | `src/services/behavior/` |
+| **8** | `TASK-GEMINI-PLUGIN` | **Gemini 2.5 Flash 정밀 행동/외형 판독 프롬프트 연동** | **[예정]** | `gemini_service.py` |
+| **9** | `TASK-AUDIO-COUGH` | **CCTV RTSP 오디오 기반 호흡기 기침 음향 감지기** | **[예정]** | `src/services/audio/` |
 
 ---
 
@@ -71,17 +72,23 @@
 
 ---
 
-### [예정] TASK-LOCAL-FILTER: 3500X 1차 필터 고도화 (소 모션 델타 + 기립불능 Aspect Ratio)
-* **상태**: **[예정]**
-* **목표**: 24시간 내내 소가 감지되는 고정 CCTV 환경에서, 평화로운 일상 프레임을 99% 차단하고 실제 '움직임 급증(발정/싸움)' 또는 '기립불능(누움 지속)' 발생 시에만 1차 트리거.
-* **실행 프롬프트**:
-  ```markdown
-  # Directive: InferenceWorker 로컬 1차 필터 강화 구현
-  1. `src/services/inference_worker.py`에 소 바운딩 박스 내부 픽셀의 프레임 간 모션 변화량(Motion Delta) 계산 로직을 추가합니다.
-  2. 바운딩 박스의 높이(H)와 너비(W)의 종횡비(Aspect Ratio)를 분석하여 바닥에 비정상적으로 납작하게 누운 상태(기립불능 의심)를 감지하는 규칙을 구현합니다.
-  3. 단순 "소 존재"는 이벤트를 발행하지 않고, "모션 급증(Threshold 초과)" 또는 "누움 지속" 조건 만족 시에만 captures/events/ 승격 및 10초 클립 생성을 트리거하도록 필터링 조건을 강화합니다.
-  4. 관련 단위 테스트(`test_inference_worker.py`)를 추가/갱신하여 검증합니다.
-  ```
+### [완결] TASK-LOCAL-FILTER: 3500X 1차 필터 고도화: 장폐색(산통)·기립불능 실시간 엣지 파이프라인 결합
+* **상태**: **[완결]** (2026-11-23 완료)
+* **목표**: `ZoneBehaviorMonitor`를 `InferenceWorker`의 `process_frame` 루프에 결합하여 장폐색/산통 전조(`COLIC_SUSPECTED`) 및 기립불능(`CATTLE_INVERTED`) 시 즉각 이벤트 승격 및 10초 MP4 클립/웹훅 전송 파이프라인 가동.
+* **반영 내역**:
+  * `src/services/inference_worker.py`: `ZoneBehaviorMonitor` 연동, BBox Aspect Ratio 분석 기반 `CLASS_LYING_LATERAL` 보정, 이상행동 감지 시 최우선 이벤트 라벨 승격 및 알람 전송.
+  * 단위 테스트 `tests/unit/test_inference_behavior_integration.py` 100% All-Green 통과.
+
+---
+
+### [완결] TASK-DATASET-PIPELINE: 축사 10대 CCTV 프레임 자동 수집기 및 반자동 의사 라벨러·학습 파이프라인
+* **상태**: **[완결]** (2026-11-23 완료)
+* **목표**: 라벨링 데이터 부재 문제를 해결하기 위해 축사 10대 CCTV로부터 주/야간 프레임 자동 수집, 4대 행동 클래스 반자동 의사 라벨링, YOLO11n 파인튜닝 학습 자동화 파이프라인 구축.
+* **반영 내역**:
+  * `src/tools/dataset_collector.py`: 축사 10대 CCTV 순회 프레임 자동 수집 (조도/시간대 카테고리 태깅).
+  * `src/tools/auto_labeler.py`: 4개 행동 클래스(`standing`, `lying_sternal`, `lying_lateral`, `mounting`) 기하학적 형태 기반 YOLO 포맷 TXT 자동 생성 및 5초 검수용 프리뷰 이미지 생성.
+  * `src/tools/train_yolo.py`: Train/Val 8:2 자동 분할, `cattle_behavior.yaml` 생성 및 YOLO11n 파인튜닝 실행기.
+  * 단위 테스트 `tests/unit/test_dataset_and_training_tools.py` 100% 통과.
 
 ---
 

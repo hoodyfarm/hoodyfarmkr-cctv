@@ -12,6 +12,12 @@ from src.core.ports import EventPublisherPort, FrameSourcePort, VisionAnalyzerPo
 from src.services.gemini_service import GeminiVisionService
 from src.services.storage_cleaner import StorageCleaner
 from src.services.clip_service import ClipService
+from src.services.behavior.cattle_behavior_tracker import (
+    CLASS_LYING_LATERAL,
+    CLASS_LYING_STERNAL,
+    CLASS_STANDING,
+    ZoneBehaviorMonitor,
+)
 from src.config import settings
 from src.domain.events.detection_event import DetectionEvent, DetectionTarget
 
@@ -44,6 +50,7 @@ class InferenceWorker:
         cooldown_sec: Optional[float] = None,
         pre_event_sec: Optional[float] = None,
         post_event_sec: Optional[float] = None,
+        behavior_monitor: Optional[ZoneBehaviorMonitor] = None,
     ):
         self.ingestion_worker = ingestion_worker
         self.poll_interval = poll_interval
@@ -53,6 +60,10 @@ class InferenceWorker:
         self.camera_name = camera_name or camera_id
         self.confidence_threshold = confidence_threshold
         self.vision_prompt = vision_prompt
+        self.behavior_monitor = behavior_monitor or ZoneBehaviorMonitor(
+            zone_id=self.camera_id,
+            tracker_cfg="config/cattle_bytetrack.yaml",
+        )
 
         # YOLO 로컬 모델 로드 (3500X CPU 최적화)
         self.yolo_model = YOLO(yolo_model_path)
@@ -257,11 +268,54 @@ class InferenceWorker:
             boxes = results[0].boxes
 
             detected_targets = []
+            cow_boxes = []
             for box in boxes:
                 cls_name = self.yolo_model.names[int(box.cls[0])]
                 conf = float(box.conf[0])
                 if cls_name in self.target_classes and conf >= self.confidence_threshold:
                     detected_targets.append({"label": cls_name, "confidence": round(conf, 2)})
+                    if cls_name == "cow":
+                        bbox = None
+                        if hasattr(box, "xyxy") and box.xyxy is not None:
+                            try:
+                                raw_xyxy = box.xyxy[0]
+                                if hasattr(raw_xyxy, "cpu"):
+                                    raw_xyxy = raw_xyxy.cpu().tolist()
+                                elif hasattr(raw_xyxy, "tolist"):
+                                    raw_xyxy = raw_xyxy.tolist()
+                                if isinstance(raw_xyxy, (list, tuple)) and len(raw_xyxy) >= 4:
+                                    bbox = [float(v) for v in raw_xyxy[:4]]
+                            except Exception:
+                                pass
+                        if bbox is not None:
+                            cow_boxes.append(bbox)
+
+            # 소 이상행동 시계열 상태 추적 (산통·장꼬임 / 기립불능 감시)
+            behavior_alerts = []
+            now = time.time()
+            if cow_boxes and self.behavior_monitor:
+                track_ids = list(range(1, len(cow_boxes) + 1))
+                classes = []
+                for bbox in cow_boxes:
+                    w = bbox[2] - bbox[0]
+                    h = max(bbox[3] - bbox[1], 1.0)
+                    classes.append(CLASS_LYING_STERNAL if (w / h > 1.2) else CLASS_STANDING)
+                behavior_alerts = self.behavior_monitor.process_detections(
+                    track_ids=track_ids,
+                    classes=classes,
+                    xyxys=cow_boxes,
+                    now=now,
+                )
+
+            if behavior_alerts:
+                top_alert = behavior_alerts[0]
+                alert_type = top_alert.get("alert_type", "CATTLE_INVERTED")
+                detected_targets.insert(0, {
+                    "label": alert_type,
+                    "confidence": 0.99,
+                    "severity": top_alert.get("severity", "CRITICAL"),
+                    "message": top_alert.get("message", ""),
+                })
 
             if not detected_targets:
                 self.filtered_count += 1
@@ -307,11 +361,25 @@ class InferenceWorker:
                         DetectionTarget(label=d["label"], confidence=d["confidence"])
                         for d in detected_targets
                     ]
+                    is_behavior_anomaly = bool(behavior_alerts)
+                    default_event_type = (
+                        behavior_alerts[0].get("alert_type", "ANOMALY")
+                        if behavior_alerts
+                        else ("ANOMALY" if (ai_analysis and ai_analysis.is_anomaly) else "NORMAL")
+                    )
                     resolved_event_type = (
                         ai_analysis.event_type
                         if (ai_analysis and hasattr(ai_analysis, "event_type"))
-                        else ("ANOMALY" if (ai_analysis and ai_analysis.is_anomaly) else "NORMAL")
+                        else default_event_type
                     )
+                    is_final_anomaly = is_behavior_anomaly or bool(ai_analysis and ai_analysis.is_anomaly)
+                    behavior_summary = behavior_alerts[0].get("message") if behavior_alerts else None
+                    summary_text = (
+                        f"{behavior_summary} | {ai_analysis.summary}"
+                        if (behavior_summary and ai_analysis)
+                        else (behavior_summary or (ai_analysis.summary if ai_analysis else None))
+                    )
+
                     detection_event = DetectionEvent(
                         event_id=event_id,
                         camera_id=self.camera_id,
@@ -320,8 +388,8 @@ class InferenceWorker:
                         timestamp=now,
                         detections=targets,
                         frame_path=event_path,
-                        is_anomaly=bool(ai_analysis and ai_analysis.is_anomaly),
-                        ai_summary=ai_analysis.summary if ai_analysis else None,
+                        is_anomaly=is_final_anomaly,
+                        ai_summary=summary_text,
                         pre_sec=self.pre_event_sec,
                         post_sec=self.post_event_sec,
                     )
