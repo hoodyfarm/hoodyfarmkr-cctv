@@ -1,4 +1,4 @@
-# 📋 후디팜 CCTV AI Vision 작업 관리 및 프롬프트 명세서 (CURRENT_TASK_PROMPT.md)
+﻿# 📋 후디팜 CCTV AI Vision 작업 관리 및 프롬프트 명세서 (CURRENT_TASK_PROMPT.md)
 
 본 문서는 **hoodyfarmkr-cctv** 프로젝트의 고도화 작업 순서를 정의하고, 차례대로 실행할 수 있도록 작업별 프롬프트 명세를 관리하는 문서입니다.
 작업 상태는 **[완결]**, **[진행중]**, **[예정]** 3단계로 추적됩니다.
@@ -48,10 +48,10 @@
 
 ### [완결] TASK-CCTV-NET-RESERVE: 축사 CCTV 10대 네트워크 스캔 및 공유기 DHCP 주소 예약 표준화
 * **상태**: **[완결]** (2026-11-22 완료)
-* **목표**: TP-Link Archer AX73 기반 CCTV 10대의 MAC 주소 스캔 및 `192.168.0.51 ~ 60` 대역 고정 예약 표준화
+* **목표**: TP-Link Archer AX73 기반 CCTV 10대의 MAC 주소 스캔 및 `192.168.0.201 ~ 210` 대역 고정 예약 표준화
 * **반영 내역**:
   * 축사 LAN 서브넷 스캔으로 10대 CCTV RTSP 포트 및 MAC 주소 전수 추출
-  * `config/farms/hoodyfarm.yaml`: `192.168.0.51` (CAM01), `192.168.0.52` (CAM02) 기본값 갱신
+  * `config/farms/hoodyfarm.yaml`: `192.168.0.201` (CAM01), `192.168.0.202` (CAM02) 기본값 갱신
   * `.env`, `.env.example`: 주소 예약 고정 IP 및 MAC 주소 참조 정보 동기화
   * 기술 문서: `md/CCTV_NETWORK_RESERVATION.md` 작성 완료
 
