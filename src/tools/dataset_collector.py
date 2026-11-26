@@ -13,18 +13,37 @@ from typing import Dict, List, Optional
 import cv2
 import yaml
 
-DEFAULT_CAMERAS = [
-    {"camera_id": "CAM_01", "ip": "192.168.0.51", "rtsp": "rtsp://admin:wlsvndqoR1!@192.168.0.51:554/streamtype=1"},
-    {"camera_id": "CAM_02", "ip": "192.168.0.52", "rtsp": "rtsp://admin:wlsvndqoR1!@192.168.0.52:554/streamtype=1"},
-    {"camera_id": "CAM_03", "ip": "192.168.0.53", "rtsp": "rtsp://admin:wlsvndqoR1!@192.168.0.53:554/streamtype=1"},
-    {"camera_id": "CAM_04", "ip": "192.168.0.54", "rtsp": "rtsp://admin:wlsvndqoR1!@192.168.0.54:554/streamtype=1"},
-    {"camera_id": "CAM_05", "ip": "192.168.0.55", "rtsp": "rtsp://admin:wlsvndqoR1!@192.168.0.55:554/streamtype=1"},
-    {"camera_id": "CAM_06", "ip": "192.168.0.56", "rtsp": "rtsp://admin:wlsvndqoR1!@192.168.0.56:554/streamtype=1"},
-    {"camera_id": "CAM_07", "ip": "192.168.0.57", "rtsp": "rtsp://admin:wlsvndqoR1!@192.168.0.57:554/streamtype=1"},
-    {"camera_id": "CAM_08", "ip": "192.168.0.58", "rtsp": "rtsp://admin:wlsvndqoR1!@192.168.0.58:554/streamtype=1"},
-    {"camera_id": "CAM_09", "ip": "192.168.0.59", "rtsp": "rtsp://admin:wlsvndqoR1!@192.168.0.59:554/streamtype=1"},
-    {"camera_id": "CAM_10", "ip": "192.168.0.60", "rtsp": "rtsp://admin:wlsvndqoR1!@192.168.0.60:554/streamtype=1"},
-]
+# 카메라 고정 IP (md/CCTV_NETWORK_RESERVATION.md 기준, 2026-11-26).
+# NVR(192.168.0.2, MAC 5A-5A-00-A5-40-15)은 카메라가 아니므로 수집 대상에서 제외한다.
+CAMERA_IPS = {
+    "CAM_BARN_01": "192.168.0.201",  # 4C-2F-7B-EE-9D-FD
+    "CAM_BARN_02": "192.168.0.12",   # 5A-5A-00-A0-91-FD
+    "CAM_BARN_03": "192.168.0.13",   # 5A-5A-00-A0-93-19
+    "CAM_BARN_04": "192.168.0.14",   # 5A-5A-00-A0-93-26
+    "CAM_BARN_05": "192.168.0.15",   # 5A-5A-00-A0-92-E6
+    "CAM_BARN_06": "192.168.0.16",   # 5A-5A-00-A0-93-B8
+    "CAM_BARN_07": "192.168.0.17",   # 5A-5A-00-3E-DC-20
+    "CAM_BARN_08": "192.168.0.18",   # 5A-5A-00-AF-EA-4F
+    "CAM_BARN_09": "192.168.0.19",   # 5A-5A-00-A0-93-BA
+}
+
+
+def _build_default_cameras() -> List[Dict[str, str]]:
+    """비밀번호는 코드에 두지 않고 .env(ONVIF_PASSWORD)에서 읽는다."""
+    from urllib.parse import quote
+
+    from src.config import settings
+
+    user = getattr(settings, "ONVIF_USER", "admin")
+    pw = quote(str(getattr(settings, "ONVIF_PASSWORD", "")), safe="")
+    return [
+        {
+            "camera_id": cid,
+            "ip": ip,
+            "rtsp": f"rtsp://{user}:{pw}@{ip}:554/streamtype=1",
+        }
+        for cid, ip in CAMERA_IPS.items()
+    ]
 
 
 def get_time_category() -> str:
@@ -59,7 +78,7 @@ def collect_dataset(
     cameras: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, int]:
     """Collects frames from cameras in a round-robin loop."""
-    cam_list = cameras or DEFAULT_CAMERAS
+    cam_list = cameras or _build_default_cameras()
     os.makedirs(output_dir, exist_ok=True)
     stats: Dict[str, int] = {cam["camera_id"]: 0 for cam in cam_list}
 
@@ -84,7 +103,7 @@ def collect_dataset(
 
             active_any = True
             rtsp = cam["rtsp"]
-            print(f"[{cam_id}] 영상 수집 시도 ({rtsp})...", end=" ")
+            print(f"[{cam_id}] 영상 수집 시도 ({cam['ip']})...", end=" ")
 
             frame = capture_single_frame(rtsp)
             if frame is not None:

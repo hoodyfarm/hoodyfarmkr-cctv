@@ -49,10 +49,10 @@
 
 ### [완결] TASK-CCTV-NET-RESERVE: 축사 CCTV 10대 네트워크 스캔 및 공유기 DHCP 주소 예약 표준화
 * **상태**: **[완결]** (2026-11-22 완료)
-* **목표**: TP-Link Archer AX73 기반 CCTV 10대의 MAC 주소 스캔 및 `192.168.0.201 ~ 210` 대역 고정 예약 표준화
+* **목표**: TP-Link Archer AX73 기반 CCTV 10대의 MAC 주소 스캔 및 CCTV 9대(201, 12~19) 및 NVR(2) 고정 예약 표준화
 * **반영 내역**:
   * 축사 LAN 서브넷 스캔으로 10대 CCTV RTSP 포트 및 MAC 주소 전수 추출
-  * `config/farms/hoodyfarm.yaml`: `192.168.0.201` (CAM01), `192.168.0.202` (CAM02) 기본값 갱신
+  * `config/farms/hoodyfarm.yaml`: `192.168.0.201` (CAM01), `192.168.0.12` (CAM02) 외 9대 전수 기본값 갱신
   * `.env`, `.env.example`: 주소 예약 고정 IP 및 MAC 주소 참조 정보 동기화
   * 기술 문서: `md/CCTV_NETWORK_RESERVATION.md` 작성 완료
 
