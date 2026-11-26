@@ -15,6 +15,7 @@ from src.services.clip_service import ClipService
 from src.services.behavior.cattle_behavior_tracker import (
     CLASS_LYING_LATERAL,
     CLASS_LYING_STERNAL,
+    CLASS_MOUNTING,
     CLASS_STANDING,
     ZoneBehaviorMonitor,
 )
@@ -37,7 +38,7 @@ class InferenceWorker:
     def __init__(
         self,
         ingestion_worker: FrameSourcePort,
-        yolo_model_path: str = "yolo11n.pt",
+        yolo_model_path: Optional[str] = None,
         poll_interval: float = 1.0,
         enable_gemini: bool = True,
         event_worker: Optional[EventPublisherPort] = None,
@@ -65,7 +66,21 @@ class InferenceWorker:
             tracker_cfg="config/cattle_bytetrack.yaml",
         )
 
-        # YOLO 로컬 모델 로드 (3500X CPU 최적화)
+        # YOLO 로컬 모델 로드 (3500X CPU 최적화: 파인튜닝 가중치 자동 탐색 및 안전한 fallback)
+        if yolo_model_path is None:
+            custom_model = os.path.join("models", "yolo11n_cattle_behavior.pt")
+            if os.path.exists(custom_model):
+                yolo_model_path = custom_model
+            else:
+                yolo_model_path = getattr(settings, "YOLO_MODEL_PATH", "yolo11n.pt")
+
+        if yolo_model_path and not os.path.exists(yolo_model_path) and yolo_model_path != "yolo11n.pt":
+            logger.warning(
+                f"InferenceWorker: Model '{yolo_model_path}' not found on disk. Falling back to 'yolo11n.pt'."
+            )
+            yolo_model_path = "yolo11n.pt"
+
+        self.yolo_model_path = yolo_model_path
         self.yolo_model = YOLO(yolo_model_path)
         self.gemini_service: VisionAnalyzerPort = vision_service or GeminiVisionService()
 
@@ -91,9 +106,14 @@ class InferenceWorker:
         self._thread: Optional[threading.Thread] = None
         self._infer_lock = threading.Lock()
 
-        # 관심 객체 필터 (농장 프로파일에서 주입하거나 기본 가축/사람 세트 사용)
+        # 관심 객체 필터 (농장 프로파일에서 주입하거나 기본 가축/사람/소 행동 세트 사용)
         self.target_classes: Set[str] = (
-            set(target_classes) if target_classes is not None else {"cow", "person", "horse", "sheep", "dog"}
+            set(target_classes)
+            if target_classes is not None
+            else {
+                "cow", "person", "horse", "sheep", "dog",
+                "standing", "lying_sternal", "lying_lateral", "mounting",
+            }
         )
 
         # 이벤트 쿨다운 타이머 (동일 객체 중복 클립 생성 및 웹훅 폭주 방지)
@@ -269,12 +289,13 @@ class InferenceWorker:
 
             detected_targets = []
             cow_boxes = []
+            detected_classes = []
             for box in boxes:
                 cls_name = self.yolo_model.names[int(box.cls[0])]
                 conf = float(box.conf[0])
                 if cls_name in self.target_classes and conf >= self.confidence_threshold:
                     detected_targets.append({"label": cls_name, "confidence": round(conf, 2)})
-                    if cls_name == "cow":
+                    if cls_name in ("cow", "standing", "lying_sternal", "lying_lateral", "mounting"):
                         bbox = None
                         if hasattr(box, "xyxy") and box.xyxy is not None:
                             try:
@@ -289,6 +310,7 @@ class InferenceWorker:
                                 pass
                         if bbox is not None:
                             cow_boxes.append(bbox)
+                            detected_classes.append(cls_name)
 
             # 소 이상행동 시계열 상태 추적 (산통·장꼬임 / 기립불능 감시)
             behavior_alerts = []
@@ -296,10 +318,14 @@ class InferenceWorker:
             if cow_boxes and self.behavior_monitor:
                 track_ids = list(range(1, len(cow_boxes) + 1))
                 classes = []
-                for bbox in cow_boxes:
-                    w = bbox[2] - bbox[0]
-                    h = max(bbox[3] - bbox[1], 1.0)
-                    classes.append(CLASS_LYING_STERNAL if (w / h > 1.2) else CLASS_STANDING)
+                for idx, bbox in enumerate(cow_boxes):
+                    orig_cls = detected_classes[idx] if idx < len(detected_classes) else "cow"
+                    if orig_cls in ("standing", "lying_sternal", "lying_lateral", "mounting"):
+                        classes.append(orig_cls)
+                    else:
+                        w = bbox[2] - bbox[0]
+                        h = max(bbox[3] - bbox[1], 1.0)
+                        classes.append(CLASS_LYING_STERNAL if (w / h > 1.2) else CLASS_STANDING)
                 behavior_alerts = self.behavior_monitor.process_detections(
                     track_ids=track_ids,
                     classes=classes,

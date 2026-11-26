@@ -21,6 +21,15 @@ logger = logging.getLogger(__name__)
 CLASS_STANDING = 0       # 기립
 CLASS_LYING_STERNAL = 1  # 정상 엎드림 (흉와)
 CLASS_LYING_LATERAL = 2  # 옆으로 쓰러짐 / 뒤집힘 (측와 - 질식/폐사 위험)
+CLASS_MOUNTING = 3       # 승미 / 승벽 (발정 행동)
+
+CLASS_NAMES = {
+    CLASS_STANDING: "standing",
+    CLASS_LYING_STERNAL: "lying_sternal",
+    CLASS_LYING_LATERAL: "lying_lateral",
+    CLASS_MOUNTING: "mounting",
+}
+NAME_TO_CLASS = {v: k for k, v in CLASS_NAMES.items()}
 
 # 2. 임계치 설정 (현장 튜닝 파라미터)
 DEBOUNCE_WINDOW = 5             # 자세 확정용 최근 프레임 수 (2.5fps 기준 약 2초)
@@ -152,6 +161,8 @@ class ZoneBehaviorMonitor:
 
         for tid, cls_id, bbox in zip(track_ids, classes, xyxys):
             active_ids.add(tid)
+            if isinstance(cls_id, str):
+                cls_id = NAME_TO_CLASS.get(cls_id, CLASS_STANDING)
             if tid not in self.tracks:
                 self.tracks[tid] = CattleTrackState(track_id=tid)
 

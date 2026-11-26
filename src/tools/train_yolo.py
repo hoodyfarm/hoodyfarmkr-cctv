@@ -100,8 +100,17 @@ def train_cattle_model(
     )
 
     # Export best model
-    best_weight = os.path.join("runs", "detect", "cattle_behavior", "weights", "best.pt")
-    if os.path.exists(best_weight):
+    possible_weights = [
+        os.path.join("runs", "detect", "runs", "detect", "cattle_behavior", "weights", "best.pt"),
+        os.path.join("runs", "detect", "cattle_behavior", "weights", "best.pt"),
+    ]
+    best_weight = None
+    for pw in possible_weights:
+        if os.path.exists(pw):
+            best_weight = pw
+            break
+
+    if best_weight:
         os.makedirs(os.path.dirname(output_model_path), exist_ok=True)
         shutil.copy2(best_weight, output_model_path)
         print(f"\n🎉 파인튜닝 완료! 최종 가중치 저장: {output_model_path}")

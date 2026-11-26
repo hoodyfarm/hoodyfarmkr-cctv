@@ -50,6 +50,8 @@ htmlcov/
 temp/
 captures/
 dataset_exports/
+datasets/
+runs/
 spool/
 scratch/
 .temp_healing/

@@ -132,10 +132,24 @@ if __name__ == "__main__":
     parser.add_argument("--out-dir", default="datasets/raw_frames", help="Output directory")
     parser.add_argument("--interval", type=float, default=15.0, help="Interval seconds between captures")
     parser.add_argument("--max-frames", type=int, default=100, help="Max frames per camera")
+    parser.add_argument(
+        "--only",
+        nargs="+",
+        default=None,
+        help="수집할 카메라 ID만 지정 (예: --only CAM_BARN_01). 미지정 시 전체 카메라",
+    )
     args = parser.parse_args()
+
+    selected = _build_default_cameras()
+    if args.only:
+        wanted = set(args.only)
+        selected = [c for c in selected if c["camera_id"] in wanted]
+        if not selected:
+            raise SystemExit(f"--only 에 해당하는 카메라가 없습니다: {sorted(wanted)}")
 
     collect_dataset(
         output_dir=args.out_dir,
         interval_sec=args.interval,
         max_frames_per_cam=args.max_frames,
+        cameras=selected,
     )
