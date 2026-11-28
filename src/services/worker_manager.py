@@ -1,4 +1,5 @@
 import os
+import time
 import logging
 from typing import Any, Dict, Optional
 
@@ -169,6 +170,7 @@ class WorkerManager:
         )
         for ing in self.ingestion_workers.values():
             ing.start()
+            time.sleep(0.8)  # 네트워크 스위치 및 대역폭 동시 폭주 방지 (0.8초 순차 웜업)
         self.event_worker.start()
         for inf in self.inference_workers.values():
             inf.start()

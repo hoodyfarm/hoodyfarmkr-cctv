@@ -1,3 +1,4 @@
+import os
 import time
 import threading
 import queue
@@ -96,10 +97,11 @@ class IngestionWorker:
             return [frame.copy() for _, frame in items[-count:]]
 
     def _connect_camera(self) -> bool:
-        """OpenCV RTSP 버퍼 최소화 연결"""
+        """OpenCV RTSP 버퍼 최소화 연결 (TCP 전송 및 타임아웃 4초 강제)"""
         self._release_camera()
         logger.info(f"IngestionWorker: Connecting to RTSP: {self.stream_url}")
         
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "timeout;4000000|rtsp_transport;tcp"
         # Windows DirectShow or FFMPEG with 1-frame buffer
         cap = cv2.VideoCapture(self.stream_url, cv2.CAP_FFMPEG)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
@@ -126,22 +128,31 @@ class IngestionWorker:
 
     def _run_loop(self):
         """핵심 캡처 루프: 프레임을 최신으로 유지하며 저주파(1.5 FPS) 샘플링"""
+        consecutive_failures = 0
         while self._running:
             if not self.is_connected or self._cap is None or not self._cap.isOpened():
                 if not self._connect_camera():
-                    time.sleep(3.0)  # 재연결 백오프
+                    time.sleep(2.0)  # 재연결 백오프
                     continue
+                consecutive_failures = 0
 
             # 프레임 읽기
             ret, frame = self._cap.read()
             now = time.time()
             
             if not ret or frame is None:
-                logger.warning("IngestionWorker: Frame grab returned False. Reconnecting...")
-                self.is_connected = False
-                self._release_camera()
-                time.sleep(1.0)
+                consecutive_failures += 1
+                if consecutive_failures >= 15:
+                    logger.warning("IngestionWorker: Frame grab returned False 15 times consecutively. Reconnecting...")
+                    self.is_connected = False
+                    self._release_camera()
+                    consecutive_failures = 0
+                    time.sleep(1.0)
+                else:
+                    time.sleep(0.05)
                 continue
+
+            consecutive_failures = 0
 
             # 목표 FPS 간격 조절
             if now - self.last_capture_time >= self.interval:
