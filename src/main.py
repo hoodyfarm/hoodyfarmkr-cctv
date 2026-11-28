@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
 from src.config import settings
-from src.api.camera_routes import router as camera_router
+from src.api.camera_routes import router as camera_router, cameras_router
 from src.api.pipeline_routes import router as pipeline_router, media_router
 from src.api.system_routes import router as system_router
 from src.api.security import require_api_key
@@ -72,6 +72,7 @@ async def correlation_id_middleware(request: Request, call_next):
 
 _auth = [Depends(require_api_key)]
 app.include_router(camera_router, dependencies=_auth)
+app.include_router(cameras_router, dependencies=_auth)
 app.include_router(pipeline_router, dependencies=_auth)
 app.include_router(gemini_router, dependencies=_auth)
 app.include_router(system_router, dependencies=_auth)
