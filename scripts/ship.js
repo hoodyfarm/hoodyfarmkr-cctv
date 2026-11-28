@@ -21,7 +21,11 @@ try {
   const currentBranch = execSync('git branch --show-current', { encoding: 'utf8' }).trim();
   console.log(`\n📦 2단계: 현재 브랜치 [${currentBranch}] 변경사항 자동 커밋...`);
   execSync('git add .', { stdio: 'inherit' });
-  execSync(`git commit -m "${commitMsg}"`, { stdio: 'inherit' });
+  try {
+    execSync(`git commit -m "${commitMsg}"`, { stdio: 'inherit' });
+  } catch (err) {
+    console.log('ℹ️ 커밋할 변경사항이 없거나 이미 최신 상태입니다. 푸시 및 병합 단계를 계속 진행합니다.');
+  }
 
   // 3. dev 브랜치 자동 병합 & 원격 푸시
   console.log(`\n🔀 3단계: dev 브랜치로 자동 병합 및 원격(GitHub) 안전 푸시...`);
