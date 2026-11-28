@@ -45,6 +45,10 @@ class MediaUrls(BaseModel):
                 return mapping[tier]
         return self.frame_signed_url or self.drive_image_url or self.tailscale_image_url or self.oci_frame_url
 
+    @property
+    def preferred_clip_url(self) -> Optional[str]:
+        return self.resolve_clip_url()
+
 
 class ClipMeta(BaseModel):
     file_name: Optional[str] = None
@@ -67,6 +71,7 @@ class CCTVEventEnvelopeV1(BaseModel):
     camera_id: str = "default_cctv"
     event_id: str
     event_type: str = "NORMAL"
+    event_code: Optional[str] = None
     detected_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     )
@@ -87,6 +92,10 @@ class CCTVEventEnvelopeV1(BaseModel):
     snapshot_url: Optional[str] = None
     summary: str = ""
     status: str = "alert"
+
+    @property
+    def version(self) -> str:
+        return self.schema_version
 
     @classmethod
     def from_event(
@@ -132,6 +141,7 @@ class CCTVEventEnvelopeV1(BaseModel):
             camera_id=event.camera_id,
             event_id=event.event_id,
             event_type=resolved_type,
+            event_code=resolved_type,
             is_anomaly=event.is_anomaly,
             detections=list(event.detections),
             clip=clip_meta,

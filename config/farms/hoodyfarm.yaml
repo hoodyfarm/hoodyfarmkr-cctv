@@ -11,56 +11,56 @@ cameras:
 - camera_id: CAM_BARN_02
   name: 2번사 (비육우)
   zone: pen_02
-  rtsp_url: ${RTSP_STREAM_URL_CAM02:-rtsp://admin:ENV_ONVIF_PASSWORD_REQUIRED@192.168.0.12:554/streamtype=1}
+  rtsp_url: ${RTSP_STREAM_URL_CAM02:-rtsp://192.168.0.12/live/0/SUB}
   target_fps: 5.0
   ring_buffer_sec: 20.0
   enabled: true
 - camera_id: CAM_BARN_03
   name: 3번사 (번식우)
   zone: pen_03
-  rtsp_url: ${RTSP_STREAM_URL_CAM03:-rtsp://admin:ENV_ONVIF_PASSWORD_REQUIRED@192.168.0.13:554/streamtype=1}
+  rtsp_url: ${RTSP_STREAM_URL_CAM03:-rtsp://192.168.0.13/live/0/SUB}
   target_fps: 5.0
   ring_buffer_sec: 20.0
   enabled: true
 - camera_id: CAM_BARN_04
   name: 4번사 (육성우)
   zone: pen_04
-  rtsp_url: ${RTSP_STREAM_URL_CAM04:-rtsp://admin:ENV_ONVIF_PASSWORD_REQUIRED@192.168.0.14:554/streamtype=1}
+  rtsp_url: ${RTSP_STREAM_URL_CAM04:-rtsp://192.168.0.14/live/0/SUB}
   target_fps: 5.0
   ring_buffer_sec: 20.0
   enabled: true
 - camera_id: CAM_BARN_05
   name: 5번사 (비육우)
   zone: pen_05
-  rtsp_url: ${RTSP_STREAM_URL_CAM05:-rtsp://admin:ENV_ONVIF_PASSWORD_REQUIRED@192.168.0.15:554/streamtype=1}
+  rtsp_url: ${RTSP_STREAM_URL_CAM05:-rtsp://192.168.0.15/live/0/SUB}
   target_fps: 5.0
   ring_buffer_sec: 20.0
   enabled: true
 - camera_id: CAM_BARN_06
   name: 6번사 (비육우)
   zone: pen_06
-  rtsp_url: ${RTSP_STREAM_URL_CAM06:-rtsp://admin:ENV_ONVIF_PASSWORD_REQUIRED@192.168.0.16:554/streamtype=1}
+  rtsp_url: ${RTSP_STREAM_URL_CAM06:-rtsp://192.168.0.16/live/0/SUB}
   target_fps: 5.0
   ring_buffer_sec: 20.0
   enabled: true
 - camera_id: CAM_BARN_07
   name: 7번사 (번식우)
   zone: pen_07
-  rtsp_url: ${RTSP_STREAM_URL_CAM07:-rtsp://admin:ENV_ONVIF_PASSWORD_REQUIRED@192.168.0.17:554/streamtype=1}
+  rtsp_url: ${RTSP_STREAM_URL_CAM07:-rtsp://192.168.0.17/live/0/SUB}
   target_fps: 5.0
   ring_buffer_sec: 20.0
   enabled: true
 - camera_id: CAM_BARN_08
   name: 8번사 (번식우)
   zone: pen_08
-  rtsp_url: ${RTSP_STREAM_URL_CAM08:-rtsp://admin:ENV_ONVIF_PASSWORD_REQUIRED@192.168.0.18:554/streamtype=1}
+  rtsp_url: ${RTSP_STREAM_URL_CAM08:-rtsp://192.168.0.18/live/0/SUB}
   target_fps: 5.0
   ring_buffer_sec: 20.0
   enabled: true
 - camera_id: CAM_BARN_09
   name: 9번사 (퇴비사/외곽)
   zone: pen_09
-  rtsp_url: ${RTSP_STREAM_URL_CAM09:-rtsp://admin:ENV_ONVIF_PASSWORD_REQUIRED@192.168.0.19:554/streamtype=1}
+  rtsp_url: ${RTSP_STREAM_URL_CAM09:-rtsp://192.168.0.19/live/0/SUB}
   target_fps: 5.0
   ring_buffer_sec: 20.0
   enabled: true
@@ -70,9 +70,15 @@ rules:
   - cow
   - person
   - dog
+  - standing
+  - lying_sternal
+  - lying_lateral
+  - mounting
   confidence_threshold: 0.25
   event_codes:
   - INVERTED
+  - CATTLE_INVERTED
+  - CATTLE_COLIC_SUSPECTED
   - CALVING
   - ESCAPE
   - ESTRUS

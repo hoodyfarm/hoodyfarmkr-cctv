@@ -24,7 +24,10 @@ class WebhookOutbox:
         db_path: Optional[str] = None,
         max_attempts: int = 5,
         base_backoff_sec: float = 5.0,
+        max_retries: Optional[int] = None,
     ):
+        if max_retries is not None:
+            max_attempts = max_retries
         if not db_path:
             base_dir = os.path.dirname(
                 os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,6 +47,11 @@ class WebhookOutbox:
         self._init_schema()
 
     def _connect(self) -> sqlite3.Connection:
+        if self.db_path == ":memory:":
+            if not hasattr(self, "_mem_conn") or self._mem_conn is None:
+                self._mem_conn = sqlite3.connect(":memory:", timeout=5.0, check_same_thread=False)
+                self._mem_conn.row_factory = sqlite3.Row
+            return self._mem_conn
         conn = sqlite3.connect(self.db_path, timeout=5.0, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn
@@ -72,8 +80,22 @@ class WebhookOutbox:
             )
             conn.commit()
 
-    def enqueue(self, envelope: CCTVEventEnvelopeV1, error: str = "", initial_attempts: int = 1) -> None:
+    def enqueue(
+        self,
+        envelope: Optional[CCTVEventEnvelopeV1] = None,
+        error: str = "",
+        initial_attempts: int = 1,
+        event_id: Optional[str] = None,
+        webhook_url: Optional[str] = None,
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """실패한 이벤트를 Outbox에 적재하거나 기존 레코드의 재시도 횟수를 갱신."""
+        if envelope is None:
+            if payload is not None:
+                envelope = CCTVEventEnvelopeV1.model_validate(payload)
+            else:
+                raise ValueError("Either envelope or payload must be provided to enqueue")
+
         now = time.time()
         status = "dlq" if initial_attempts >= self.max_attempts else "pending"
         delay = self.base_backoff_sec * (2 ** max(initial_attempts - 1, 0))
@@ -109,6 +131,7 @@ class WebhookOutbox:
                 ),
             )
             conn.commit()
+        return envelope.event_id
 
     def fetch_due(self, limit: int = 20, now: Optional[float] = None) -> List[Dict[str, Any]]:
         current = now if now is not None else time.time()
