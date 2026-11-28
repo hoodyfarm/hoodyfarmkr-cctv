@@ -29,21 +29,29 @@ CAMERA_IPS = {
 
 
 def _build_default_cameras() -> List[Dict[str, str]]:
-    """비밀번호는 코드에 두지 않고 .env(ONVIF_PASSWORD)에서 읽는다."""
+    """카메라별 실측 RTSP URL을 생성한다.
+    - 1번사(SmartLife/Tuya): 8899/554 계정인증 필요
+    - 2~9번사(모디아이): live/0/SUB 익명 접속 또는 554 인증 포트
+    """
     from urllib.parse import quote
-
     from src.config import settings
 
     user = getattr(settings, "ONVIF_USER", "admin")
     pw = quote(str(getattr(settings, "ONVIF_PASSWORD", "")), safe="")
-    return [
-        {
+
+    cameras = []
+    for cid, ip in CAMERA_IPS.items():
+        if cid == "CAM_BARN_01":
+            rtsp = f"rtsp://{user}:{pw}@{ip}:554/streamtype=1"
+        else:
+            # 모디아이 2~9번사는 live/0/SUB 스트림 지원
+            rtsp = f"rtsp://{ip}/live/0/SUB"
+        cameras.append({
             "camera_id": cid,
             "ip": ip,
-            "rtsp": f"rtsp://{user}:{pw}@{ip}:554/streamtype=1",
-        }
-        for cid, ip in CAMERA_IPS.items()
-    ]
+            "rtsp": rtsp,
+        })
+    return cameras
 
 
 def get_time_category() -> str:
@@ -61,7 +69,7 @@ def get_time_category() -> str:
 
 def capture_single_frame(rtsp_url: str, timeout_sec: float = 3.0) -> Optional[cv2.Mat]:
     """Capture a single frame from RTSP stream with timeout."""
-    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "timeout;3000000|rtsp_transport;tcp"
+    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "timeout;4000000|rtsp_transport;tcp"
     cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
     if not cap.isOpened():
         return None

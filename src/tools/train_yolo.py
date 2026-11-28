@@ -125,9 +125,20 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs")
     parser.add_argument("--batch", type=int, default=16, help="Batch size")
     parser.add_argument("--device", default="cpu", help="Device to use (cpu or 0 for GPU)")
+    parser.add_argument(
+        "--model",
+        default="models/yolo11n_cattle_behavior.pt" if os.path.exists("models/yolo11n_cattle_behavior.pt") else "yolo11n.pt",
+        help="Base model checkpoint",
+    )
     parser.add_argument("--prepare-only", action="store_true", help="Only prepare dataset structure")
     args = parser.parse_args()
 
     yaml_file = prepare_dataset_structure()
     if not args.prepare_only:
-        train_cattle_model(data_yaml=yaml_file, epochs=args.epochs, batch=args.batch, device=args.device)
+        train_cattle_model(
+            data_yaml=yaml_file,
+            base_model=args.model,
+            epochs=args.epochs,
+            batch=args.batch,
+            device=args.device,
+        )
