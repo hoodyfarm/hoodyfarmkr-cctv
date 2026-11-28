@@ -12,7 +12,7 @@ class CCTVAnalysisResultSchema(BaseModel):
     is_anomaly: bool = Field(description="True if unusual event, intrusion, hazard, or anomaly is detected")
     event_type: str = Field(
         default="NORMAL",
-        description="Standard anomaly/behavior event code: INVERTED (기립불능/전도), CALVING (분만임박/진통), ESCAPE (탈출/이탈), ESTRUS (발정/승가), FIGHTING (투쟁), NORMAL (정상상태), INTRUSION (침입/사람), FIRE (화재)"
+        description="Standard anomaly/behavior event code: INVERTED (기립불능/전도), COLIC (산통/장꼬임/반복기립눕기), CALVING (분만임박/진통), ESCAPE (탈출/이탈), ESTRUS (발정/승가), FIGHTING (투쟁), NORMAL (정상상태), INTRUSION (침입/사람), FIRE (화재)"
     )
     confidence_score: float = Field(default=0.9, ge=0.0, le=1.0, description="Overall AI analysis confidence score")
     detected_objects: List[DetectedObject] = Field(default_factory=list, description="List of detected objects in the scene")

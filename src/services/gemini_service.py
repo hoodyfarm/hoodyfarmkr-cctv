@@ -26,7 +26,8 @@ class GeminiVisionService:
         prompt = custom_prompt or (
             "Analyze this CCTV camera frame carefully. Detect cattle, animals, or humans in the farm. "
             "Identify behavior and anomalies, and classify into event_type: "
-            "'INVERTED' (기립불능, 뒤집힘, 넘어져서 못 일어남), 'CALVING' (분만 임박, 양수 파수, 출산 징후), "
+            "'INVERTED' (기립불능, 뒤집힘, 넘어져서 못 일어남), 'COLIC' (산통, 장꼬임, 불안정한 반복 기립/눕기), "
+            "'CALVING' (분만 임박, 양수 파수, 출산 징후), "
             "'ESCAPE' (울타리 이탈, 축사 탈출), 'ESTRUS' (발정 승가), 'FIGHTING' (투쟁), 'INTRUSION' (외부인 침입), "
             "'FIRE' (화재 연기), or 'NORMAL' (정상). "
             "Set event_type to one of these uppercase codes. "
